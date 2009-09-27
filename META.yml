@@ -1,6 +1,6 @@
 ---
 name: XUL-Gui
-version: 0.12
+version: 0.13
 author:
   - 'Eric Strom <ejstrom@gmail.com>'
 abstract: display cross platform gui apps with firefox
@@ -14,7 +14,7 @@ configure_requires:
 provides:
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.12
+    version: 0.13
   XUL::Gui::Object:
     file: lib/XUL/Gui.pm
   XUL::Gui::Scalar:

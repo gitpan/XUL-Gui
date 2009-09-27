@@ -1,20 +1,19 @@
-# XUL::Gui.pm - render cross platform gui applications with firefox from perl
-#
-# copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
-# this program is free software; you can redistribute it and/or modify it under the same terms as perl itself.
-
 package XUL::Gui;
 	use base 'Exporter';
 	use strict;
 	use warnings;
 	use Carp;
 	use Storable qw/dclone/;
-	our $VERSION = 0.12;
+	our $VERSION = '0.13';
 	our $DEBUG = 0;
 
 =head1 NAME
 
 XUL::Gui - render cross platform gui applications with firefox from perl
+
+=head1 VERSION
+
+Version 0.13
 
 =head1 SYNOPSIS
 
@@ -40,7 +39,6 @@ XUL::Gui - render cross platform gui applications with firefox from perl
             P('all the HTML tags are in CAPS'),
         );
 
-
 =head1 DESCRIPTION
 
 this module exposes the entire functionality of mozilla firefox's rendering
@@ -61,45 +59,34 @@ the code will be considered production ready, and interfaces finalized at versio
 all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
 be acted on as such.  developer.mozilla.com is the official source of documentation.
 
-this documentation is very incomplete.  an updated module will hopefully be submitted in 1 - 2 weeks.
+this documentation is a work in progress
 
-=head2 Functions
+=head1 EXPORT
 
-=over 8
+	all functions listed here are exported by default, this may change in the future
 
-=item C<start>
+	all XUL tags: (also exported as Titlecase)
+		Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet Browser Button Caption
+		CheckBox ColorPicker Column Columns Command CommandSet Conditions Content DatePicker Deck Description Dialog
+		DialogHeader DropMarker Editor Grid Grippy GroupBox HBox IFrame Image Key KeySet Label ListBox ListCell ListCol
+		ListCols ListHead ListHeader ListItem Member Menu MenuBar MenuItem MenuList MenuPopup MenuSeparator Notification
+		NotificationBox Observes Overlay Page Panel Param PopupSet PrefPane PrefWindow Preference Preferences ProgressMeter
+		Query QuerySet Radio RadioGroup Resizer RichListBox RichListItem Row Rows Rule Scale Script ScrollBar ScrollBox
+		ScrollCorner Separator Spacer SpinButtons Splitter Stack StatusBar StatusBarPanel StringBundle StringBundleSet Tab
+		TabBox TabPanel TabPanels Tabs Template TextBox TextNode TimePicker TitleBar ToolBar ToolBarButton ToolBarGrippy
+		ToolBarItem ToolBarPalette ToolBarSeparator ToolBarSet ToolBarSpacer ToolBarSpring ToolBox ToolTip Tree TreeCell
+		TreeChildren TreeCol TreeCols TreeItem TreeRow TreeSeparator Triple VBox Where Window Wizard WizardPage
 
-	starts the XUL::Gui server, and launches firefox.  C<start> accepts a Window() object, or any
-	other XUL or HTML tag.  if a Window is not given, one will be created with default settings.
+	all HTML tags: (also exported as html_lowercase)
+		A ABBR ACRONYM ADDRESS APPLET AREA AUDIO B BASE BASEFONT BDO BGSOUND BIG BLINK BLOCKQUOTE BODY BR BUTTON CANVAS
+		CAPTION CENTER CITE CODE COL COLGROUP COMMENT DD DEL DFN DIR DIV DL DT EM EMBED FIELDSET FONT FORM FRAME FRAMESET
+		H1 H2 H3 H4 H5 H6 HEAD HR HTML I IFRAME ILAYER IMG INPUT INS ISINDEX KBD LABEL LAYER LEGEND LI LINK LISTING MAP
+		MARQUEE MENU META MULTICOL NOBR NOEMBED NOFRAMES NOLAYER NOSCRIPT OBJECT OL OPTGROUP OPTION P PARAM PLAINTEXT PRE
+		Q RB RBC RP RT RTC RUBY S SAMP SCRIPT SELECT SMALL SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE TBODY TD
+		TEXTAREA TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
 
-=item Tags
-
-	all of the current XUL and HTML tags are imported into the caller's namespace by default.
-	XUL tags start with a capital letter, and then have optionally capitalized subsequent words:
-		ProgressBar == Progressbar
-	HTML tags are imported in all caps (H1 P DIV SPAN TABLE IMG....)
-
-=item other functions
-
-	widget extends server Code quit buffered alert now cached noevents
-	dialog zip attribute hashif gui tag object delay run function XUL
-	FLEX FIT FILL genid doevents trace mapn apply toggle lf start
-
-	documentation is currently incomplete.
-	please see the source code for current functions
-
-=back
-
-=head1 LICENSE
-
-this program is free software;
-you can redistribute it and/or modify it under the same terms as perl itself.
-
-=head1 AUTHOR
-
-copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
-
-=head1 SEE ALSO
+	widget extends server Code quit buffered alert now cached noevents dialog zip attribute hashif gui
+	tag object delay run function XUL FLEX FIT FILL genid doevents trace mapn apply	toggle lf start
 
 =cut
 
@@ -115,7 +102,7 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		ToolBarItem ToolBarPalette ToolBarSeparator ToolBarSet ToolBarSpacer ToolBarSpring ToolBox ToolTip Tree TreeCell
 		TreeChildren TreeCol TreeCols TreeItem TreeRow TreeSeparator Triple VBox Where Window Wizard WizardPage/;
 
-	our %HTML = map {("_$_" => "html:$_", uc $_ => "html:$_")}
+	our %HTML = map {("html_$_" => "html:$_", uc $_ => "html:$_")}
 		qw/a abbr acronym address applet area audio b base basefont bdo bgsound big blink blockquote body br button canvas
 		caption center cite code col colgroup comment dd del dfn dir div dl dt em embed fieldset font form frame frameset
 		h1 h2 h3 h4 h5 h6 head hr html i iframe ilayer img input ins isindex kbd label layer legend li link listing map
@@ -136,8 +123,21 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 						 xmlns       => 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul' ],
 		scrollbox 	=> [ scrollTo    => sub{ my ($self, $x, $y) = @_; gui("scrollTo(ID.$$self{ID}, $x, $y);") } ],
 	);
+	our $server = XUL::Gui::Server->init;
+	our (%ID, %_ID);
+	our %dialogs;
 
-	# utility functions
+=head1 FUNCTIONS
+
+=head2 C<mapn CODE NUMBER LIST>
+
+map over n elements at a time
+
+	mapn {print "@_" if $_ % 2} 3 => 1..10;
+	> 1 2 3
+	> 7 8 9
+
+=cut
 	sub mapn (&$@) {
 		my ($c, $by, @r) = splice @_, 0, 2;
 		while (@_) {
@@ -147,18 +147,38 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		@r
 	}
 
+=head2 C<zip LIST of ARRAYREF>
+
+	%hash = zip [qw/a b c/], [1..3];
+
+=cut
 	sub zip {
 		map {my $i = $_;
 			map {$$_[$i]} @_
 		} 0 .. $#{$_[0]}
 	}
 
+=head2 C<apply CODE LIST>
+
+apply a function to a list and return that list
+
+	print join ", " => apply {s/two/one/} "this two", "and that two";
+	> this one, and that one
+
+=cut
 	sub apply (&@) {
 		my ($c, @r) = @_;
 		$c->() for @r;
 		wantarray ? @r : pop @r
 	}
 
+=head2 C<toggle TARGET OPT1 OPT2>
+
+alternate a variable between two states
+
+	toggle $state => 0, 1;
+
+=cut
 	sub toggle {
 		no warnings;
 		$_[0] = $_[ 1 + ($_[0] eq $_[1] or $_[0] ne $_[2]) ]
@@ -170,18 +190,20 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		exists $$hash{$test} ? ($test => $$hash{$test}) : ()
 	}
 
+=head2 C<attribute NAME>
+
+includes an attribute name if it exists, only workts inside of widgets
+
+	attribute 'value'; # is syntactic sugar for
+	exists $A{value} ? ( value => $A{value} ) : ()
+
+=cut
 	sub attribute ($) {
 		no strict 'refs';
 		my ($key, $A) = (shift, (caller).'::A');
 		map {exists $$A{$_} ? ($_ => $$A{$_}) : ()}
 			ref $key eq 'ARRAY' ? @$key : $key
 	}
-
-
-	#  package functions
-	our $server = XUL::Gui::Server->init;
-	our (%ID, %_ID);
-	our %dialogs;
 
 	{
 		my $id = 0;
@@ -205,6 +227,13 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		C => \@C, A => \%A, M => \%M
 	}
 
+=head2 C<object TAGNAME LIST>
+
+creates a gui proxy object, allows runtime addition of custom tags
+
+	object('Label', value=>'hello') is the same as Label( value=>'hello' )
+
+=cut
 	sub object {
 		my $tag = lc shift;
 		unshift @_, @{ $defaults{$tag} } if $defaults{$tag};
@@ -218,6 +247,15 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 			 : $self;
 	}
 
+=head2 C<tag NAME>
+
+returns a CODEREF that generates proxy objects, allows for user defined tag functions
+
+	*mylabel = tag 'label';
+
+	\&mylabel == \&Label
+
+=cut
 	sub tag {
 		my @arg = @_;
 		sub {
@@ -230,6 +268,22 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		*{$_} = tag $HTML{$_} for keys %HTML;
 	}
 
+=head2 C<widget CODE HASH>
+
+group tags together into common patterns, with methods and inheritance
+
+	*MyWidget = widget {
+		Hbox(
+			Label( value=>'Labeled Button: ' ),
+			Button( label=>'OK' )
+		)
+	}
+	method => sub{ ... },
+	method2 => sub{ ... };
+
+	much more detail in XUL::Gui::Manual
+
+=cut
 	sub widget (&%) {
 		no strict 'refs';
 		my ($code, %methods, $sub) = @_;
@@ -271,6 +325,16 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		}
 	}
 
+=head2 C<extends CODE>
+
+indicate that a widget inherits from another widget or tag
+
+	*MySubWidget = widget {extends MyWidget}
+		submethod => sub{...};
+
+	more details in XUL::Gui::Manual
+
+=cut
 	sub extends {
 		no strict 'refs';
 		croak 'extends only works inside widgets' unless defined %_ID;
@@ -279,6 +343,11 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		@_
 	}
 
+=head2 C<Code JAVASCRIPT>
+
+executes its javascript at the moment it is written to the gui
+
+=cut
 	sub Code ($) {
 		my $c = object;
 		$$c{CODE}   = shift;
@@ -286,8 +355,22 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		$c
 	}
 
+=head2 C<run JAVASCRIPT>
+
+executes javascript immediately
+
+=cut
 	sub run { &gui }
 
+=head2 C<function JAVASCRIPT>
+
+create a javascript function, useful for functions that need to be very fast, such as rollovers
+
+	Button( label=>'click me', oncommand=> function q{
+		alert('hello from javascript');
+	})
+
+=cut
 	sub function ($) {
 		(my $js = shift) =~ s[\$?W{\s*(\w+)\s*}]
 							 [ID.\$_->{W}{$1}{ID}]g;
@@ -302,6 +385,11 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		} ] => 'XUL::Gui::FUNCTION'
 	}
 
+=head2 C<XUL STRING>
+
+converts an XUL string to XUL::Gui objects
+
+=cut
 	{my %xul; @xul{map {lc} @Xul} = @Xul;
 	sub XUL {
 		for ("@_") {
@@ -316,24 +404,48 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 		}
 	}}
 
+=head2 C<alert STRING>
+
+open an alert message box
+
+=cut
 	sub alert {
 		gui( "alert('\Q@_\E');" );
 		@_
 	}
 
-	sub server {
-		$server->start( &parse )
-	}
+=head2 C<server OBJECTS; or start OBJECTS>
 
-	sub start {$server->start( &parse )}
+starts the http server, launches firefox
+
+if OBJECT is a Window, that window is created, otherwise a default one is added, and
+the OBJECT is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
+
+the function will not return until the the gui quits
+
+server and start are exactly the same, one will be removed at some point
+
+=cut
+	sub server {$server->start( &parse )}
+	sub start  {$server->start( &parse )}
 
 	sub dialog { carp 'dialog not implemented yet' }
 
+=head2 C<quit>
+
+shuts down the server (causes a call to C<server> or C<start> to return at the end of the current event cycle)
+
+=cut
 	sub quit {
 		gui('quit();');
 		$$server{run} = 0;
 	}
 
+=head2 C<trace LIST>
+
+carps LIST with object details, and then returns LIST unchanged
+
+=cut
 	sub trace {
 		my $caller = caller;
 		carp 'trace: ', join ', ' => map {
@@ -374,6 +486,12 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 
 
 	{my ($buffered, @buffer, $cached, %cache, $now);
+
+=head2 C<gui JAVASCRIPT>
+
+executes JAVASCRIPT
+
+=cut
 		sub gui : lvalue {
 			push @_, "\n";
 			unless ($now) {
@@ -389,18 +507,47 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 			$cache{$_[0]} = $res if $cached and $_[0] =~ /^(GET|0)/;
 			$res
 		}
+
+=head2 pragmatic blocks
+
+the following functions all apply pragmas to their CODE blocks.
+in some cases, they also take a list. this list will be @_ when
+the CODE block executes.  this is useful for sending in values
+from the gui, if you dont want to use a now{} block.
+
+=head3 C<buffered CODE LIST>
+
+delays sending gui updates
+
+	buffered {
+		$ID{$_}->value = '' for qw/a bunch of labels/
+	};
+
+=cut
 		sub buffered (&@) {
 			$buffered++;
 			&{+shift};
 			gui(@buffer),
 				@buffer = () unless --$buffered;
 		}
+
+=head3 C<cached CODE>
+
+turns on caching of gets from the gui
+
+=cut
 		sub cashed (&) {
 			$cached++;
 			my $ret = shift->();
 			%cache = () unless --$cached;
 			$ret;
 		}
+
+=head3 C<now CODE>
+
+execute immediately, from inside a buffered or cached block
+
+=cut
 		sub now (&) {
 			$now++;
 			my @ret = shift->();
@@ -408,25 +555,48 @@ copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
 			wantarray ? @ret : $ret[0];
 		}
 	}
+
+=head3 C<delay CODE LIST>
+
+delays executing its CODE until the next gui refresh
+
+=cut
 	sub delay (&@) {
 		my $code = shift;
 		my @args = @_;
 		push @{$$server{queue}}, sub{ $code->( @args ) };
 		return;
 	}
+
+=head3 C<noevents CODE LIST>
+
+disable event handling
+
+=cut
 	sub noevents (&@) {
 		gui('cacheEvents = false;');
 		my @ret = &{+shift};
 		gui('cacheEvents = true;');
 		@ret;
 	}
+
+=head2 C<mapn CODE, NUMBER, LIST>
+
+force a gui update before an event handler finishes
+
+=cut
 	sub doevents () {
 		$server->write('text/plain', 'NOOP');
 		$server->read;
 		return;
 	}
 
+=head1 METHODS
 
+in addition to mirroring all of an object's javascript methods / attributes / and properties
+to perl, several default methods have been added to all objects
+
+=cut
 
 package XUL::Gui::Object;
 	use warnings;
@@ -490,6 +660,11 @@ package XUL::Gui::Object;
 		$self
 	}
 
+=head2 C<toXUL>
+
+returns an object as an XUL string
+
+=cut
 	sub toXUL {
 		my $self = shift;
 		my $tab  = shift || 0;
@@ -512,6 +687,11 @@ package XUL::Gui::Object;
 		join '' => @xul
 	}
 
+=head2 C<toJS>
+
+returns an object as a javascript string
+
+=cut
 	sub toJS {
 		my ($self, $final) = @_;
 		my @js;
@@ -549,6 +729,11 @@ package XUL::Gui::Object;
 		join "\n" => @js, $final ? "$final.appendChild($id);" : ''
 	}
 
+=head2 C<removeChildren LIST>
+
+removes the children in LIST, or all children if none given
+
+=cut
 	sub removeChildren {
 		my $self = shift;
 		@_	? XUL::Gui::buffered {$self->removeChild($_) for @_} @_
@@ -556,6 +741,11 @@ package XUL::Gui::Object;
 		$self
 	}
 
+=head2 C<removeItems LIST>
+
+removes the items in LIST, or all items if none given
+
+=cut
 	sub removeItems {
 		my $self = shift;
 		@_	? XUL::Gui::buffered {$self->removeItem($_) for @_} @_
@@ -563,12 +753,22 @@ package XUL::Gui::Object;
 		$self
 	}
 
+=head2 C<appendChildren LIST>
+
+appends the children in LIST
+
+=cut
 	sub appendChildren {
 		my $self = shift;
 		XUL::Gui::buffered {$self->appendChild($_) for @_} @_;
 		$self
 	}
 
+=head2 C<prependChild CHILD [INDEX]>
+
+inserts CHILD at INDEX in the parent's child list
+
+=cut
 	sub prependChild {
 		my ($self, $child, $count, $first) = @_;
 		if ($$self{TAG} eq 'tabs') {
@@ -588,6 +788,11 @@ package XUL::Gui::Object;
 		$self
 	}
 
+=head2 C<appendItems LIST>
+
+append a list of items
+
+=cut
 	sub appendItems {
 		my $self = shift;
 		XUL::Gui::buffered {
@@ -599,6 +804,11 @@ package XUL::Gui::Object;
 		$self
 	}
 
+=head2 C<replaceItems LIST>
+
+removes all items, then appends LIST
+
+=cut
 	sub replaceItems {
 		my $self = shift;
 		XUL::Gui::buffered {
@@ -822,7 +1032,6 @@ package XUL::Gui::Server;
 			'',
 			$_ for "@_[1..$#_]";
 	}
-
 
 	$client_js = <<'END';
 
@@ -1048,4 +1257,63 @@ Element.prototype.noEvents = function( value ){
 }
 
 END
-1;
+
+package XUL::Gui;
+
+=head1 AUTHOR
+
+Eric Strom, C<< <ejstrom at gmail.com> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=XUL-Gui>.
+I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
+
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+    perldoc XUL::Gui
+
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=XUL-Gui>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/XUL-Gui>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/XUL-Gui>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/XUL-Gui/>
+
+=back
+
+
+=head1 ACKNOWLEDGEMENTS
+
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2009 Eric Strom.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
+
+
+=cut
+1; # End of XUL::Gui
