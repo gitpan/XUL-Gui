@@ -4,7 +4,7 @@ package XUL::Gui;
     use warnings;
     use Carp;
     use Storable qw/dclone/;
-    our $VERSION = '0.14';
+    our $VERSION = '0.15';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -13,16 +13,21 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-Version 0.14
+version 0.15
+
+this module is presented for preview only and is under active development.
+this code is currently in beta, use in production enviroments at your own risk
+
+the code will be considered production ready, and interfaces finalized at version 0.25
 
 =head1 SYNOPSIS
 
     use XUL::Gui;
-    start Label 'hello, world!';
+    display Label 'hello, world!';
 
 
     use XUL::Gui;
-    start Window title => "XUL::Gui's long hello",
+    display Window title => "XUL::Gui's long hello",
         GroupBox(
             Caption('XUL'),
             Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
@@ -50,11 +55,6 @@ and other plugins), and are even easier to write than HTML.
 
 this module is written in pure perl, and only depends upon core modules, making it
 easy to distribute your application.
-
-this module is presented for preview only and is under active development.
-this code is currently in beta, use in production enviroments at your own risk
-
-the code will be considered production ready, and interfaces finalized at version 0.25
 
 all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
 be acted on as such.  developer.mozilla.com is the official source of documentation.
@@ -85,8 +85,8 @@ this documentation is a work in progress
         Q RB RBC RP RT RTC RUBY S SAMP SCRIPT SELECT SMALL SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE TBODY TD
         TEXTAREA TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
 
-    widget extends server Code quit buffered alert now cached noevents dialog zip attribute hashif gui
-    tag object delay run function XUL FLEX FIT FILL genid doevents trace mapn apply toggle lf start
+    display widget extends Code quit buffered alert now cached noevents dialog zip attribute hashif gui
+    tag object delay run function XUL FLEX FIT FILL genid doevents trace mapn apply toggle lf
 
 =cut
 
@@ -116,7 +116,7 @@ this documentation is a work in progress
 
     our @EXPORT = (keys %HTML, @Xul, qw/C A M W widget extends server Code %ID quit buffered alert now cached noevents
         dialog zip attribute hashif gui tag object delay run function XUL FLEX FIT FILL genid doevents trace mapn apply
-        toggle lf start/);
+        toggle lf start display/);
 
     our %defaults = (
         window      => ['xmlns:html' => 'http://www.w3.org/1999/xhtml',
@@ -129,7 +129,9 @@ this documentation is a work in progress
 
 =head1 FUNCTIONS
 
-=head2 C<mapn CODE NUMBER LIST>
+=over 8
+
+=item C<mapn CODE NUMBER LIST>
 
 map over n elements at a time
 
@@ -147,7 +149,7 @@ map over n elements at a time
         @r
     }
 
-=head2 C<zip LIST of ARRAYREF>
+=item C<zip LIST of ARRAYREF>
 
     %hash = zip [qw/a b c/], [1..3];
 
@@ -158,7 +160,7 @@ map over n elements at a time
         } 0 .. $#{$_[0]}
     }
 
-=head2 C<apply CODE LIST>
+=item C<apply CODE LIST>
 
 apply a function to a list and return that list
 
@@ -172,7 +174,7 @@ apply a function to a list and return that list
         wantarray ? @r : pop @r
     }
 
-=head2 C<toggle TARGET OPT1 OPT2>
+=item C<toggle TARGET OPT1 OPT2>
 
 alternate a variable between two states
 
@@ -190,7 +192,7 @@ alternate a variable between two states
         exists $$hash{$test} ? ($test => $$hash{$test}) : ()
     }
 
-=head2 C<attribute NAME>
+=item C<attribute NAME>
 
 includes an attribute name if it exists, only workts inside of widgets
 
@@ -227,7 +229,7 @@ includes an attribute name if it exists, only workts inside of widgets
         C => \@C, A => \%A, M => \%M
     }
 
-=head2 C<object TAGNAME LIST>
+=item C<object TAGNAME LIST>
 
 creates a gui proxy object, allows runtime addition of custom tags
 
@@ -247,7 +249,7 @@ creates a gui proxy object, allows runtime addition of custom tags
              : $self;
     }
 
-=head2 C<tag NAME>
+=item C<tag NAME>
 
 returns a CODEREF that generates proxy objects, allows for user defined tag functions
 
@@ -268,7 +270,7 @@ returns a CODEREF that generates proxy objects, allows for user defined tag func
         *{$_} = tag $HTML{$_} for keys %HTML;
     }
 
-=head2 C<widget CODE HASH>
+=item C<widget CODE HASH>
 
 group tags together into common patterns, with methods and inheritance
 
@@ -325,7 +327,7 @@ group tags together into common patterns, with methods and inheritance
         }
     }
 
-=head2 C<extends CODE>
+=item C<extends CODE>
 
 indicate that a widget inherits from another widget or tag
 
@@ -343,7 +345,7 @@ indicate that a widget inherits from another widget or tag
         @_
     }
 
-=head2 C<Code JAVASCRIPT>
+=item C<Code JAVASCRIPT>
 
 executes its javascript at the moment it is written to the gui
 
@@ -355,14 +357,14 @@ executes its javascript at the moment it is written to the gui
         $c
     }
 
-=head2 C<run JAVASCRIPT>
+=item C<run JAVASCRIPT>
 
 executes javascript immediately
 
 =cut
     sub run { &gui }
 
-=head2 C<function JAVASCRIPT>
+=item C<function JAVASCRIPT>
 
 create a javascript function, useful for functions that need to be very fast, such as rollovers
 
@@ -385,7 +387,7 @@ create a javascript function, useful for functions that need to be very fast, su
         } ] => 'XUL::Gui::FUNCTION'
     }
 
-=head2 C<XUL STRING>
+=item C<XUL STRING>
 
 converts an XUL string to XUL::Gui objects
 
@@ -404,7 +406,7 @@ converts an XUL string to XUL::Gui objects
         }
     }}
 
-=head2 C<alert STRING>
+=item C<alert STRING>
 
 open an alert message box
 
@@ -414,24 +416,23 @@ open an alert message box
         @_
     }
 
-=head2 C<server OBJECTS; or start OBJECTS>
+=item C<display OBJECTS>
 
 starts the http server, launches firefox
 
 if OBJECT is a Window, that window is created, otherwise a default one is added, and
 the OBJECT is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
 
-the function will not return until the the gui quits
-
-server and start are exactly the same, one will be removed at some point
+the C<display> will not return until the the gui quits
 
 =cut
-    sub server {$server->start( &parse )}
-    sub start  {$server->start( &parse )}
+    sub server  {$server->start( &parse )}
+    sub start   {$server->start( &parse )}
+	sub display {$server->start( &parse )}
 
     sub dialog { carp 'dialog not implemented yet' }
 
-=head2 C<quit>
+=item C<quit>
 
 shuts down the server (causes a call to C<server> or C<start> to return at the end of the current event cycle)
 
@@ -441,7 +442,7 @@ shuts down the server (causes a call to C<server> or C<start> to return at the e
         $$server{run} = 0;
     }
 
-=head2 C<trace LIST>
+=item C<trace LIST>
 
 carps LIST with object details, and then returns LIST unchanged
 
@@ -487,10 +488,11 @@ carps LIST with object details, and then returns LIST unchanged
 
     {my ($buffered, @buffer, $cached, %cache, $now);
 
-=head2 C<gui JAVASCRIPT>
+=item C<gui JAVASCRIPT>
 
 executes JAVASCRIPT
 
+=back
 =cut
         sub gui : lvalue {
             push @_, "\n";
@@ -508,14 +510,16 @@ executes JAVASCRIPT
             $res
         }
 
-=head2 pragmatic blocks
+=head1 pragmatic blocks
 
 the following functions all apply pragmas to their CODE blocks.
 in some cases, they also take a list. this list will be @_ when
 the CODE block executes.  this is useful for sending in values
 from the gui, if you dont want to use a now{} block.
 
-=head3 C<buffered CODE LIST>
+=over 8
+
+=item C<buffered CODE LIST>
 
 delays sending gui updates
 
@@ -531,7 +535,7 @@ delays sending gui updates
                 @buffer = () unless --$buffered;
         }
 
-=head3 C<cached CODE>
+=item C<cached CODE>
 
 turns on caching of gets from the gui
 
@@ -543,7 +547,7 @@ turns on caching of gets from the gui
             $ret;
         }
 
-=head3 C<now CODE>
+=item C<now CODE>
 
 execute immediately, from inside a buffered or cached block
 
@@ -556,7 +560,7 @@ execute immediately, from inside a buffered or cached block
         }
     }
 
-=head3 C<delay CODE LIST>
+=item C<delay CODE LIST>
 
 delays executing its CODE until the next gui refresh
 
@@ -568,7 +572,7 @@ delays executing its CODE until the next gui refresh
         return;
     }
 
-=head3 C<noevents CODE LIST>
+=item C<noevents CODE LIST>
 
 disable event handling
 
@@ -580,9 +584,11 @@ disable event handling
         @ret;
     }
 
-=head2 C<mapn CODE, NUMBER, LIST>
+=item C<doevents>
 
 force a gui update before an event handler finishes
+
+=back
 
 =cut
     sub doevents () {
@@ -596,9 +602,12 @@ force a gui update before an event handler finishes
 in addition to mirroring all of an object's existing javascript methods / attributes / and properties
 to perl, several default methods have been added to all objects
 
+=over 8
+
 =cut
 
-package XUL::Gui::Object;
+package #hide from cpan?
+	XUL::Gui::Object;
     use warnings;
     use strict;
     my $search;
@@ -660,7 +669,7 @@ package XUL::Gui::Object;
         $self
     }
 
-=head2 C<toXUL>
+=item C<toXUL>
 
 returns an object as an XUL string
 
@@ -687,7 +696,7 @@ returns an object as an XUL string
         join '' => @xul
     }
 
-=head2 C<toJS>
+=item C<toJS>
 
 returns an object as a javascript string
 
@@ -729,7 +738,7 @@ returns an object as a javascript string
         join "\n" => @js, $final ? "$final.appendChild($id);" : ''
     }
 
-=head2 C<removeChildren LIST>
+=item C<removeChildren LIST>
 
 removes the children in LIST, or all children if none given
 
@@ -741,7 +750,7 @@ removes the children in LIST, or all children if none given
         $self
     }
 
-=head2 C<removeItems LIST>
+=item C<removeItems LIST>
 
 removes the items in LIST, or all items if none given
 
@@ -753,7 +762,7 @@ removes the items in LIST, or all items if none given
         $self
     }
 
-=head2 C<appendChildren LIST>
+=item C<appendChildren LIST>
 
 appends the children in LIST
 
@@ -764,7 +773,7 @@ appends the children in LIST
         $self
     }
 
-=head2 C<prependChild CHILD [INDEX]>
+=item C<prependChild CHILD [INDEX]>
 
 inserts CHILD at INDEX in the parent's child list
 
@@ -788,7 +797,7 @@ inserts CHILD at INDEX in the parent's child list
         $self
     }
 
-=head2 C<appendItems LIST>
+=item C<appendItems LIST>
 
 append a list of items
 
@@ -804,9 +813,11 @@ append a list of items
         $self
     }
 
-=head2 C<replaceItems LIST>
+=item C<replaceItems LIST>
 
 removes all items, then appends LIST
+
+=back
 
 =cut
     sub replaceItems {
@@ -822,7 +833,8 @@ removes all items, then appends LIST
 
 
 
-package XUL::Gui::Scalar;
+package #hide from cpan?
+	XUL::Gui::Scalar;
     use base 'XUL::Gui::Object';
     use warnings;
     use strict;
@@ -851,7 +863,8 @@ package XUL::Gui::Scalar;
     }
 
 
-package XUL::Gui::Server;
+package #hide from cpan?
+	XUL::Gui::Server;
     use warnings;
     use strict;
     use Carp;
@@ -1266,19 +1279,19 @@ Eric Strom, C<< <ejstrom at gmail.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or through
+please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=XUL-Gui>.
 I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
 
 =head1 SUPPORT
 
-You can find documentation for this module with the perldoc command.
+you can find documentation for this module with the perldoc command.
 
     perldoc XUL::Gui
 
 
-You can also look for information at:
+you can also look for information at:
 
 =over 4
 
@@ -1306,13 +1319,13 @@ L<http://search.cpan.org/dist/XUL-Gui/>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Eric Strom.
+copyright 2009 Eric Strom.
 
-This program is free software; you can redistribute it and/or modify it
+this program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
 by the Free Software Foundation; or the Artistic License.
 
-See http://dev.perl.org/licenses/ for more information.
+see http://dev.perl.org/licenses/ for more information.
 
 
 =cut
