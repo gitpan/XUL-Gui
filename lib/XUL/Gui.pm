@@ -4,7 +4,7 @@ package XUL::Gui;
     use warnings;
     use Carp;
     use Storable qw/dclone/;
-    our $VERSION = '0.15';
+    our $VERSION = '0.16';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -13,12 +13,14 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.15
+version 0.16
 
 this module is presented for preview only and is under active development.
-this code is currently in beta, use in production enviroments at your own risk
+this code is currently in beta, use in production environments at your own risk
 
-the code will be considered production ready, and interfaces finalized at version 0.25
+the code will be considered production ready, and interfaces finalized at version 0.50
+
+this documentation is a work in progress
 
 =head1 SYNOPSIS
 
@@ -27,14 +29,20 @@ the code will be considered production ready, and interfaces finalized at versio
 
 
     use XUL::Gui;
-    display Window title => "XUL::Gui's long hello",
+    display Window title => "XUL::Gui's long hello", minwidth=>300,
         GroupBox(
             Caption('XUL'),
             Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
+            Button( id=>'btn',
+                label=>'automatic id registration',
+                oncommand=>sub{
+                    $ID{btn}->label = 'means no more variable clutter';
+                    $ID{txt}->value = 'and makes cross tag updates easy';
+            }),
             Button( type=>'menu', label=>'menu button',
                 MenuPopup map {MenuItem label=>$_} qw/first second third/
             ),
-            TextBox( FILL ),
+            TextBox( id=>'txt', FILL ),
             ProgressMeter(mode=>'undetermined'),
         ),
         GroupBox(
@@ -57,9 +65,37 @@ this module is written in pure perl, and only depends upon core modules, making 
 easy to distribute your application.
 
 all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
-be acted on as such.  developer.mozilla.com is the official source of documentation.
+be acted on as such.  for anything not written in this document or XUL::Gui::Manual,
+L<http://developer.mozilla.com/> is the official source of documentation.
 
-this documentation is a work in progress
+=head2 Tags
+
+all tags (XUL, HTML, or user defined widgets) are parsed the same way, and can fit into one of
+four templates
+
+=over 8
+
+=item * C<< HR() >>
+
+=item * C<< Label('some text') >>
+
+in the special case of a tag with one argument, which is not another tag, that argument is
+added to that tag as a text node. this is mostly used for HTML tags: C<B('bold text')>
+
+=item * C<< Label( value=>'some text', style=>'color: red' ) >>
+
+=item * C<< Hbox( id=>'mybox', Label('hello'), B('world'), style=>'border: 1px solid black') >>
+
+attribute pairs and children can be mixed in any order
+
+=back
+
+setting the 'id' attribute enters that id into the C<%ID> hash.
+
+    $object = Button( id=>'btn', label=>'OK' );
+
+    #  $ID{btn} == $object
+
 
 =head1 EXPORT
 
@@ -194,7 +230,7 @@ alternate a variable between two states
 
 =item C<attribute NAME>
 
-includes an attribute name if it exists, only workts inside of widgets
+includes an attribute name if it exists, only works inside of widgets
 
     attribute 'value'; # is syntactic sugar for
     exists $A{value} ? ( value => $A{value} ) : ()
@@ -231,7 +267,7 @@ includes an attribute name if it exists, only workts inside of widgets
 
 =item C<object TAGNAME LIST>
 
-creates a gui proxy object, allows runtime addition of custom tags
+creates a gui proxy object, allows run time addition of custom tags
 
     object('Label', value=>'hello') is the same as Label( value=>'hello' )
 
@@ -357,11 +393,6 @@ executes its javascript at the moment it is written to the gui
         $c
     }
 
-=item C<run JAVASCRIPT>
-
-executes javascript immediately
-
-=cut
     sub run { &gui }
 
 =item C<function JAVASCRIPT>
@@ -426,15 +457,15 @@ the OBJECT is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
 the C<display> will not return until the the gui quits
 
 =cut
-    sub server  {$server->start( &parse )}
-    sub start   {$server->start( &parse )}
-	sub display {$server->start( &parse )}
+    sub server  {$server->start( &parse )} # deprecated
+    sub start   {$server->start( &parse )} # deprecated
+    sub display {$server->start( &parse )}
 
     sub dialog { carp 'dialog not implemented yet' }
 
 =item C<quit>
 
-shuts down the server (causes a call to C<server> or C<start> to return at the end of the current event cycle)
+shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
 
 =cut
     sub quit {
@@ -493,6 +524,7 @@ carps LIST with object details, and then returns LIST unchanged
 executes JAVASCRIPT
 
 =back
+
 =cut
         sub gui : lvalue {
             push @_, "\n";
@@ -510,12 +542,12 @@ executes JAVASCRIPT
             $res
         }
 
-=head1 pragmatic blocks
+=head1 PRAGMATIC BLOCKS
 
 the following functions all apply pragmas to their CODE blocks.
 in some cases, they also take a list. this list will be @_ when
 the CODE block executes.  this is useful for sending in values
-from the gui, if you dont want to use a now{} block.
+from the gui, if you don't want to use a now{} block.
 
 =over 8
 
@@ -599,15 +631,27 @@ force a gui update before an event handler finishes
 
 =head1 METHODS
 
+    # access attributes and properties
+    $object->value = 5;     # sets the value in the gui
+    print $object->value;   # gets the value from the gui
+
+    # the attribute is set if it exists, otherwise the property is set
+
+    $object->_value = 7;    # sets the property directly
+
+    # function calls
+    $object->focus;                         # void context
+    $object->appendChild( H2('title') );    # or any arguments are always function calls
+
 in addition to mirroring all of an object's existing javascript methods / attributes / and properties
-to perl, several default methods have been added to all objects
+to perl (with identical spelling / capitalization), several default methods have been added to all objects
 
 =over 8
 
 =cut
 
-package #hide from cpan?
-	XUL::Gui::Object;
+package #hide from cpan
+    XUL::Gui::Object;
     use warnings;
     use strict;
     my $search;
@@ -833,8 +877,8 @@ removes all items, then appends LIST
 
 
 
-package #hide from cpan?
-	XUL::Gui::Scalar;
+package #hide from cpan
+    XUL::Gui::Scalar;
     use base 'XUL::Gui::Object';
     use warnings;
     use strict;
@@ -863,8 +907,8 @@ package #hide from cpan?
     }
 
 
-package #hide from cpan?
-	XUL::Gui::Server;
+package #hide from cpan
+    XUL::Gui::Server;
     use warnings;
     use strict;
     use Carp;
@@ -928,7 +972,7 @@ package #hide from cpan?
                 message "event $req->{CONTENT}" if $XUL::Gui::DEBUG > 1;
                 my ($code, $id, $evt, $obj) = split ' ', $req->{CONTENT};
                 $evt = "ON\U$evt";
-                $id  = $root->{ID} if $id eq 'undefined'; # why doesnt onunload window send id?
+                $id  = $root->{ID} if $id eq 'undefined'; # why doesn't onunload window send id?
                 $id  = $ID{$id}{P}{ID} while $ID{$id}{P} and not $ID{$id}{$evt}; # more xul bugs
                 if (ref $ID{$id}{$evt} eq 'CODE'){
                     $ID{$id}{$evt} -> ( $ID{$id}, XUL::Gui::object(undef, id=>$obj) )
