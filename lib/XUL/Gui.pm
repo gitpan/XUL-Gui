@@ -10,7 +10,7 @@ package XUL::Gui;
 	use Carp;
 	use Storable qw/dclone/;
 
-	our $VERSION = 0.1;
+	our $VERSION = 0.11;
 	our $DEBUG = 0;
 	our @Xul = map {$_, (ucfirst lc) x /.[A-Z]/}
 		qw/Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet Browser Button Caption
@@ -957,33 +957,35 @@ Element.prototype.noEvents = function( value ){
 }
 
 END
+
+package XUL::Gui;
 =head1 NAME
 
 XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 SYNOPSIS
 
-    use XUL::Gui;
-    start Label 'hello, world!';
+use XUL::Gui;
+start Label 'hello, world!';
 
 
-	use XUL::Gui;
-	start Window title => "XUL::Gui's long hello",
-		GroupBox(
-			Caption('XUL'),
-			Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
-			Button( type=>'menu', label=>'menu button',
-				MenuPopup map {MenuItem label=>$_} qw/first second third/
-			),
-			TextBox( FILL ),
-			ProgressMeter(mode=>'undetermined'),
-		),
-		GroupBox(
-			Caption('HTML too'),
-			TABLE( border=>1, TR map {TD $_} 'one', I('two'), B('three'), U('four'), SUP('five') ),
-			HR,
-			P('all the tags are in CAPS'),
-		);
+use XUL::Gui;
+start Window title => "XUL::Gui's long hello",
+    GroupBox(
+        Caption('XUL'),
+        Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
+        Button( type=>'menu', label=>'menu button',
+            MenuPopup map {MenuItem label=>$_} qw/first second third/
+        ),
+        TextBox( FILL ),
+        ProgressMeter(mode=>'undetermined'),
+    ),
+    GroupBox(
+        Caption('HTML too'),
+        TABLE( border=>1, TR map {TD $_} 'one', I('two'), B('three'), U('four'), SUP('five') ),
+        HR,
+        P('all the HTML tags are in CAPS'),
+    );
 
 
 =head1 DESCRIPTION
@@ -1024,9 +1026,14 @@ XUL tags start with a capital letter, and then have optionally capitalized subse
 	ProgressBar == Progressbar
 HTML tags are imported in all caps (H1 P DIV SPAN TABLE IMG....)
 
-=item the rest
+=item other functions
 
-documentation is currently incomplete. please see the source code for current functions
+widget extends server Code quit buffered alert now cached noevents
+dialog zip attribute hashif gui tag object delay run function XUL
+FLEX FIT FILL genid doevents trace mapn apply toggle lf start
+
+documentation is currently incomplete.
+please see the source code for current functions
 
 =back
 
