@@ -1,0 +1,12 @@
+Build.bat
+Build.PL
+Changes
+ignore.txt
+lib/XUL/Gui.pm
+Makefile.PL
+MANIFEST
+README
+t/00-load.t
+t/boilerplate.t
+t/pod.t
+META.yml
