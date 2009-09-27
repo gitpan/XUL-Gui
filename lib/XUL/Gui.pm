@@ -9,9 +9,100 @@ package XUL::Gui;
 	use warnings;
 	use Carp;
 	use Storable qw/dclone/;
-
-	our $VERSION = 0.11;
+	our $VERSION = 0.12;
 	our $DEBUG = 0;
+
+=head1 NAME
+
+XUL::Gui - render cross platform gui applications with firefox from perl
+
+=head1 SYNOPSIS
+
+    use XUL::Gui;
+    start Label 'hello, world!';
+
+
+    use XUL::Gui;
+    start Window title => "XUL::Gui's long hello",
+        GroupBox(
+            Caption('XUL'),
+            Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
+            Button( type=>'menu', label=>'menu button',
+                MenuPopup map {MenuItem label=>$_} qw/first second third/
+            ),
+            TextBox( FILL ),
+            ProgressMeter(mode=>'undetermined'),
+        ),
+        GroupBox(
+            Caption('HTML too'),
+            TABLE( border=>1, TR map {TD $_} 'one', I('two'), B('three'), U('four'), SUP('five') ),
+            HR,
+            P('all the HTML tags are in CAPS'),
+        );
+
+
+=head1 DESCRIPTION
+
+this module exposes the entire functionality of mozilla firefox's rendering
+engine to perl by providing all of the XUL and HTML tags as functions and
+allowing you to interact with those objects directly from perl.  gui applications
+created with this toolkit are cross platform, fully support CSS styling, inherit
+firefox's rich assortment of web technologies (browser, canvas and video tags, flash
+and other plugins), and are even easier to write than HTML.
+
+this module is written in pure perl, and only depends upon core modules, making it
+easy to distribute your application.
+
+this module is presented for preview only and is under active development.
+this code is currently in beta, use in production enviroments at your own risk
+
+the code will be considered production ready, and interfaces finalized at version 0.25
+
+all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
+be acted on as such.  developer.mozilla.com is the official source of documentation.
+
+this documentation is very incomplete.  an updated module will hopefully be submitted in 1 - 2 weeks.
+
+=head2 Functions
+
+=over 8
+
+=item C<start>
+
+	starts the XUL::Gui server, and launches firefox.  C<start> accepts a Window() object, or any
+	other XUL or HTML tag.  if a Window is not given, one will be created with default settings.
+
+=item Tags
+
+	all of the current XUL and HTML tags are imported into the caller's namespace by default.
+	XUL tags start with a capital letter, and then have optionally capitalized subsequent words:
+		ProgressBar == Progressbar
+	HTML tags are imported in all caps (H1 P DIV SPAN TABLE IMG....)
+
+=item other functions
+
+	widget extends server Code quit buffered alert now cached noevents
+	dialog zip attribute hashif gui tag object delay run function XUL
+	FLEX FIT FILL genid doevents trace mapn apply toggle lf start
+
+	documentation is currently incomplete.
+	please see the source code for current functions
+
+=back
+
+=head1 LICENSE
+
+this program is free software;
+you can redistribute it and/or modify it under the same terms as perl itself.
+
+=head1 AUTHOR
+
+copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
+
+=head1 SEE ALSO
+
+=cut
+
 	our @Xul = map {$_, (ucfirst lc) x /.[A-Z]/}
 		qw/Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet Browser Button Caption
 		CheckBox ColorPicker Column Columns Command CommandSet Conditions Content DatePicker Deck Description Dialog
@@ -957,96 +1048,4 @@ Element.prototype.noEvents = function( value ){
 }
 
 END
-
-package XUL::Gui;
-=head1 NAME
-
-XUL::Gui - render cross platform gui applications with firefox from perl
-
-=head1 SYNOPSIS
-
-use XUL::Gui;
-start Label 'hello, world!';
-
-
-use XUL::Gui;
-start Window title => "XUL::Gui's long hello",
-    GroupBox(
-        Caption('XUL'),
-        Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
-        Button( type=>'menu', label=>'menu button',
-            MenuPopup map {MenuItem label=>$_} qw/first second third/
-        ),
-        TextBox( FILL ),
-        ProgressMeter(mode=>'undetermined'),
-    ),
-    GroupBox(
-        Caption('HTML too'),
-        TABLE( border=>1, TR map {TD $_} 'one', I('two'), B('three'), U('four'), SUP('five') ),
-        HR,
-        P('all the HTML tags are in CAPS'),
-    );
-
-
-=head1 DESCRIPTION
-
-this module exposes the entire functionality of mozilla firefox's rendering
-engine to perl by providing all of the XUL and HTML tags as functions and
-allowing you to interact with those objects directly from perl.  gui applications
-created with this toolkit are cross platform, fully support CSS styling, inherit
-firefox's rich assortment of web technologies (browser, canvas and video tags, flash
-and other plugins), and are even easier to write than HTML.
-
-this module is written in pure perl, and only depends upon core modules, making it
-easy to distribute your application.
-
-this module is presented for preview only and is under active development.
-this code is currently in beta, use in production enviroments at your own risk
-
-the code will be considered production ready, and interfaces finalized at version 0.25
-
-all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
-be acted on as such.  developer.mozilla.com is the official source of documentation.
-
-this documentation is very incomplete.  an updated module will hopefully be submitted in 1 - 2 weeks.
-
-=head2 Functions
-
-=over 8
-
-=item C<start>
-
-starts the XUL::Gui server, and launches firefox.  C<start> accepts a Window() object, or any
-other XUL or HTML tag.  if a Window is not given, one will be created with default settings.
-
-=item Tags
-
-all of the current XUL and HTML tags are imported into the caller's namespace by default.
-XUL tags start with a capital letter, and then have optionally capitalized subsequent words:
-	ProgressBar == Progressbar
-HTML tags are imported in all caps (H1 P DIV SPAN TABLE IMG....)
-
-=item other functions
-
-widget extends server Code quit buffered alert now cached noevents
-dialog zip attribute hashif gui tag object delay run function XUL
-FLEX FIT FILL genid doevents trace mapn apply toggle lf start
-
-documentation is currently incomplete.
-please see the source code for current functions
-
-=back
-
-=head1 LICENSE
-
-this program is free software;
-you can redistribute it and/or modify it under the same terms as perl itself.
-
-=head1 AUTHOR
-
-copyright (c) 2009 eric strom <ejstrom@gmail.com>. all rights reserved.
-
-=head1 SEE ALSO
-
-=cut
 1;
