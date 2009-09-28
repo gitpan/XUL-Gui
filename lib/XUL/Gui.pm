@@ -5,7 +5,7 @@ package XUL::Gui;
     use Carp;
     use Storable qw/dclone/;
     use List::Util qw/max/;
-    our $VERSION = '0.17';
+    our $VERSION = '0.18';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -14,7 +14,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.17
+version 0.18
 
 this module is under active development, interfaces may change.
 
@@ -29,6 +29,7 @@ this documentation is a work in progress
     use XUL::Gui;
     display Label 'hello, world!';
 
+    # short enough for you? (s/Label/P/ for bonus points) and of course you can do much more:
 
     use XUL::Gui;
     display Window title => "XUL::Gui's long hello", minwidth=>300,
@@ -70,6 +71,24 @@ all XUL and HTML objects in perl are exact mirrors of their javascript counterpa
 be acted on as such.  for anything not written in this document or XUL::Gui::Manual,
 L<http://developer.mozilla.com/> is the official source of documentation.
 
+gui's created with module are event driven.  an arbitrarily complex (and runtime mutable)
+object tree is passed to C<display>, which then creates the gui in firefox and starts the
+event loop.  C<display> will wait for and respond to events until the C<quit> function is
+called, or the user closes the firefox window.
+
+all of javascript's event handlers are available, and can be written in perl (normally)
+or javascript (for handlers that need to be very fast such as image rollovers with
+onmouseover or the like).  This is not to say that perl side handlers are slow, but with
+rollovers and fast mouse movements, there are sometimes slightly noticeable delays due to
+protocol overhead.
+
+the goal of this module is to make gui development as easy as possible. XUL's widgets and nested design
+structure gets us most of the way there, and this module with its light weight syntax, and "Do What I Mean"
+nature hopefully finishes the job.  everything has sensible defaults with minimal boilerplate, and nested design
+means a logical code flow that isn't littered with variables.  now you can focus on your gui's design and
+functionality, and not on the deficiencies of your toolkit. if XUL::Gui doesn't get you all the way there yet,
+give it time, I'm still working on it.
+
 =head2 Tags
 
 all tags (XUL, HTML, or user defined widgets) are parsed the same way, and can fit into one of
@@ -98,6 +117,21 @@ setting the 'id' attribute enters that id into the C<%ID> hash.
 
     #  $ID{btn} == $object
 
+any tag attribute name that matches C</^on/> is an event handler (onclick, onfocus....), and
+expects a C<sub{...}> (perl event handler) or C<function q{...}> (javascript event handler).
+
+perl event handlers get passed a reference to themselves, and an event object
+
+    Button( label=>'click me', oncommand=> sub {
+        my ($self, $event) = @_;
+        $self->label = $event->type;
+    })
+
+javascript event handlers have C<event> and C<this> set for you
+
+    Button( label=>'click me', oncommand=> function q{
+        this.label = event.type;
+    })
 
 =head1 EXPORT
 
@@ -262,18 +296,22 @@ alternate a variable between two states
 
 =item C<display LIST>
 
-starts the http server, launches firefox
+starts the http server, launches firefox, waits for events
 
 takes a list of gui objects, and several optional parameters:
 
-    debug     0 - 3
-    nolaunch  BOOL
-    nochrome  BOOL
+    OPTION    VALUES  DEFAULT  DESCRIPTION
+    debug     0 - 3   0
+    nolaunch  BOOL    0        disables launching firefox, connect manually to http://localhost:8888
+    nochrome  BOOL    0        chrome mode disables all normal firefox gui elements, setting this
+                               option will turn those elements back on.
 
-if C<$_[0]> is a C<Window>, that window is created, otherwise a default one is added,
-and C<@_> is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
+if C<$_[0]> is a C<Window>, that window is created, otherwise a default one is added.
+gui objects from C<@_> are then added to the window.
 
 C<display> will not return until the the gui quits
+
+see SYNOPSYS and XUL::Gui::Manual for more details
 
 =cut
     sub server  {$server->start( &parse )} # deprecated
@@ -339,12 +377,21 @@ group tags together into common patterns, with methods and inheritance
 
     *MyWidget = widget {
         Hbox(
-            Label( value=>'Labeled Button: ' ),
-            Button( label=>'OK' )
+            Label( value=> $A{label} ),
+            Button( label=>'OK', attribute 'oncommand' ),
+            @C
         )
-    }
-    method => sub{ ... },
-    method2 => sub{ ... };
+    }   method  => sub{ ... },
+        method2 => sub{ ... };
+
+    $ID{someobject}->appendChild( MyWidget( label=>'widget', oncommand=>\&event_handler ) );
+
+    inside widgets, several variables are defined
+    variable    contains the passed in
+       %A           attributes
+       @C           children
+       %M           methods
+       $W           a reference to the current widget
 
     much more detail in XUL::Gui::Manual
 
@@ -431,7 +478,7 @@ converts an XUL string to XUL::Gui objects
     {my %xul; @xul{map {lc} @Xul} = @Xul;
     sub XUL {
         for ("@_") {
-            s {<(\w+)(.+?)}       "$xul{$1}($2"g;
+            s {<(\w+)(.+?)}       "$xul{lc $1}($2"g;
             s {/>}                '),'g;
             s {</\w+>}            '),'g;
             s {>}                 ''g;
@@ -451,7 +498,6 @@ open an alert message box
         gui( "alert('\Q@_\E');" );
         @_
     }
-
 
 =item C<trace LIST>
 
@@ -515,6 +561,7 @@ executes its javascript at the moment it is written to the gui
 create a javascript function, useful for functions that need to be very fast, such as rollovers
 
     Button( label=>'click me', oncommand=> function q{
+        this.label = 'ouch';
         alert('hello from javascript');
     })
 
