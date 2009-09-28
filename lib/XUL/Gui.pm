@@ -4,7 +4,8 @@ package XUL::Gui;
     use warnings;
     use Carp;
     use Storable qw/dclone/;
-    our $VERSION = '0.16';
+    use List::Util qw/max/;
+    our $VERSION = '0.17';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -13,10 +14,11 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.16
+version 0.17
 
-this module is presented for preview only and is under active development.
-this code is currently in beta, use in production environments at your own risk
+this module is under active development, interfaces may change.
+
+this code is currently in alpha, use in production environments at your own risk
 
 the code will be considered production ready, and interfaces finalized at version 0.50
 
@@ -165,9 +167,11 @@ setting the 'id' attribute enters that id into the C<%ID> hash.
 
 =head1 FUNCTIONS
 
+=head2 utility functions
+
 =over 8
 
-=item C<mapn CODE NUMBER LIST>
+=item C<mapn {CODE} NUMBER LIST>
 
 map over n elements at a time
 
@@ -193,10 +197,10 @@ map over n elements at a time
     sub zip {
         map {my $i = $_;
             map {$$_[$i]} @_
-        } 0 .. $#{$_[0]}
+        } 0 .. max map $#$_, @_
     }
 
-=item C<apply CODE LIST>
+=item C<apply {CODE} LIST>
 
 apply a function to a list and return that list
 
@@ -224,27 +228,12 @@ alternate a variable between two states
 
     sub lf {(shift) ? @_ : ()}
 
-    sub hashif ($\%) { my ($test, $hash) = @_;
+    sub hashif ($\%) {
+        my ($test, $hash) = @_;
         exists $$hash{$test} ? ($test => $$hash{$test}) : ()
     }
 
-=item C<attribute NAME>
-
-includes an attribute name if it exists, only works inside of widgets
-
-    attribute 'value'; # is syntactic sugar for
-    exists $A{value} ? ( value => $A{value} ) : ()
-
-=cut
-    sub attribute ($) {
-        no strict 'refs';
-        my ($key, $A) = (shift, (caller).'::A');
-        map {exists $$A{$_} ? ($_ => $$A{$_}) : ()}
-            ref $key eq 'ARRAY' ? @$key : $key
-    }
-
-    {
-        my $id = 0;
+    {my $id = 0;
         sub genid () {'xul_' . $id++}
     }
 
@@ -263,6 +252,44 @@ includes an attribute name if it exists, only works inside of widgets
             else {$M{$_} = shift}
         }
         C => \@C, A => \%A, M => \%M
+    }
+
+=back
+
+=head2 gui functions
+
+=over 8
+
+=item C<display LIST>
+
+starts the http server, launches firefox
+
+takes a list of gui objects, and several optional parameters:
+
+    debug     0 - 3
+    nolaunch  BOOL
+    nochrome  BOOL
+
+if C<$_[0]> is a C<Window>, that window is created, otherwise a default one is added,
+and C<@_> is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
+
+C<display> will not return until the the gui quits
+
+=cut
+    sub server  {$server->start( &parse )} # deprecated
+    sub start   {$server->start( &parse )} # deprecated
+    sub display {$server->start( &parse )}
+
+    sub dialog { carp 'dialog not implemented yet' }
+
+=item C<quit>
+
+shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
+
+=cut
+    sub quit {
+        gui('quit();');
+        $$server{run} = 0;
     }
 
 =item C<object TAGNAME LIST>
@@ -306,7 +333,7 @@ returns a CODEREF that generates proxy objects, allows for user defined tag func
         *{$_} = tag $HTML{$_} for keys %HTML;
     }
 
-=item C<widget CODE HASH>
+=item C<widget {CODE} HASH>
 
 group tags together into common patterns, with methods and inheritance
 
@@ -346,8 +373,7 @@ group tags together into common patterns, with methods and inheritance
             local *$cID = \%ID;
             $_ID{$wid}{WIDGET} = [ &$code ];   # NOT FINAL
 
-            for my $k (keys %data)
-                { $$M{$k} = sub : lvalue {$data{$k}} }
+            for my $k (keys %data) { $$M{$k} = sub : lvalue {$data{$k}} }
             $_ID{$wid}{M} = { %methods, %$M };
 
             for my $i (keys %ID) {
@@ -363,7 +389,7 @@ group tags together into common patterns, with methods and inheritance
         }
     }
 
-=item C<extends CODE>
+=item C<extends OBJECT>
 
 indicate that a widget inherits from another widget or tag
 
@@ -381,42 +407,21 @@ indicate that a widget inherits from another widget or tag
         @_
     }
 
-=item C<Code JAVASCRIPT>
+=item C<attribute NAME>
 
-executes its javascript at the moment it is written to the gui
+includes an attribute name if it exists, only works inside of widgets
 
-=cut
-    sub Code ($) {
-        my $c = object;
-        $$c{CODE}   = shift;
-        $$c{M}{run} = sub {gui( shift->{CODE} )};
-        $c
-    }
-
-    sub run { &gui }
-
-=item C<function JAVASCRIPT>
-
-create a javascript function, useful for functions that need to be very fast, such as rollovers
-
-    Button( label=>'click me', oncommand=> function q{
-        alert('hello from javascript');
-    })
+    attribute 'value'; # is syntactic sugar for
+    exists $A{value} ? ( value => $A{value} ) : ()
 
 =cut
-    sub function ($) {
-        (my $js = shift) =~ s[\$?W{\s*(\w+)\s*}]
-                             [ID.\$_->{W}{$1}{ID}]g;
-        bless [ sub {
-            my $id = shift;
-            my $func = 'ID.' . genid;
-            delay( sub{
-                local *_ = \$ID{$id};
-                gui( "$func = function(event){ (function(){ ". eval(qq/"$js"/) ." }).call( ID.$id )  }" );
-            });
-            "$func(event)";
-        } ] => 'XUL::Gui::FUNCTION'
+    sub attribute ($) {
+        no strict 'refs';
+        my ($key, $A) = (shift, (caller).'::A');
+        map {exists $$A{$_} ? ($_ => $$A{$_}) : ()}
+            ref $key eq 'ARRAY' ? @$key : $key
     }
+
 
 =item C<XUL STRING>
 
@@ -447,31 +452,6 @@ open an alert message box
         @_
     }
 
-=item C<display OBJECTS>
-
-starts the http server, launches firefox
-
-if OBJECT is a Window, that window is created, otherwise a default one is added, and
-the OBJECT is added to it.  see SYNOPSYS and XUL::Gui::Manual for more details
-
-the C<display> will not return until the the gui quits
-
-=cut
-    sub server  {$server->start( &parse )} # deprecated
-    sub start   {$server->start( &parse )} # deprecated
-    sub display {$server->start( &parse )}
-
-    sub dialog { carp 'dialog not implemented yet' }
-
-=item C<quit>
-
-shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
-
-=cut
-    sub quit {
-        gui('quit();');
-        $$server{run} = 0;
-    }
 
 =item C<trace LIST>
 
@@ -516,6 +496,43 @@ carps LIST with object details, and then returns LIST unchanged
             } @_[1..$#_]). ")\n";
     }
 
+=item C<Code JAVASCRIPT>
+
+executes its javascript at the moment it is written to the gui
+
+=cut
+    sub Code ($) {
+        my $c = object;
+        $$c{CODE}   = shift;
+        $$c{M}{run} = sub {gui( shift->{CODE} )};
+        $c
+    }
+
+    sub run { &gui }
+
+=item C<function JAVASCRIPT>
+
+create a javascript function, useful for functions that need to be very fast, such as rollovers
+
+    Button( label=>'click me', oncommand=> function q{
+        alert('hello from javascript');
+    })
+
+=cut
+    sub function ($) {
+        (my $js = shift) =~ s[\$?W{\s*(\w+)\s*}]
+                             [ID.\$_->{W}{$1}{ID}]g;
+        bless [ sub {
+            my $id = shift;
+            my $func = 'ID.' . genid;
+            delay( sub{
+                local *_ = \$ID{$id};
+                gui( "$func = function(event){ (function(){ ". eval(qq/"$js"/) ." }).call( ID.$id )  }" );
+            });
+            "$func(event)";
+        } ] => 'XUL::Gui::FUNCTION'
+    }
+
 
     {my ($buffered, @buffer, $cached, %cache, $now);
 
@@ -545,13 +562,13 @@ executes JAVASCRIPT
 =head1 PRAGMATIC BLOCKS
 
 the following functions all apply pragmas to their CODE blocks.
-in some cases, they also take a list. this list will be @_ when
+in some cases, they also take a list. this list will be C<@_> when
 the CODE block executes.  this is useful for sending in values
-from the gui, if you don't want to use a now{} block.
+from the gui, if you don't want to use a C<now {block}>
 
 =over 8
 
-=item C<buffered CODE LIST>
+=item C<buffered {CODE} LIST>
 
 delays sending gui updates
 
@@ -567,7 +584,7 @@ delays sending gui updates
                 @buffer = () unless --$buffered;
         }
 
-=item C<cached CODE>
+=item C<cached {CODE}>
 
 turns on caching of gets from the gui
 
@@ -579,7 +596,7 @@ turns on caching of gets from the gui
             $ret;
         }
 
-=item C<now CODE>
+=item C<now {CODE}>
 
 execute immediately, from inside a buffered or cached block
 
@@ -592,7 +609,7 @@ execute immediately, from inside a buffered or cached block
         }
     }
 
-=item C<delay CODE LIST>
+=item C<delay {CODE} LIST>
 
 delays executing its CODE until the next gui refresh
 
@@ -604,7 +621,7 @@ delays executing its CODE until the next gui refresh
         return;
     }
 
-=item C<noevents CODE LIST>
+=item C<noevents {CODE} LIST>
 
 disable event handling
 
@@ -713,7 +730,7 @@ package #hide from cpan
         $self
     }
 
-=item C<toXUL>
+=item C<< ->toXUL >>
 
 returns an object as an XUL string
 
@@ -740,7 +757,7 @@ returns an object as an XUL string
         join '' => @xul
     }
 
-=item C<toJS>
+=item C<< ->toJS >>
 
 returns an object as a javascript string
 
@@ -782,7 +799,7 @@ returns an object as a javascript string
         join "\n" => @js, $final ? "$final.appendChild($id);" : ''
     }
 
-=item C<removeChildren LIST>
+=item C<< ->removeChildren( LIST ) >>
 
 removes the children in LIST, or all children if none given
 
@@ -794,7 +811,7 @@ removes the children in LIST, or all children if none given
         $self
     }
 
-=item C<removeItems LIST>
+=item C<< ->removeItems( LIST ) >>
 
 removes the items in LIST, or all items if none given
 
@@ -806,7 +823,7 @@ removes the items in LIST, or all items if none given
         $self
     }
 
-=item C<appendChildren LIST>
+=item C<< ->appendChildren( LIST ) >>
 
 appends the children in LIST
 
@@ -817,9 +834,9 @@ appends the children in LIST
         $self
     }
 
-=item C<prependChild CHILD [INDEX]>
+=item C<< ->prependChild( CHILD, [INDEX] ) >>
 
-inserts CHILD at INDEX in the parent's child list
+inserts CHILD at INDEX (defaults to 0) in the parent's child list
 
 =cut
     sub prependChild {
@@ -841,23 +858,23 @@ inserts CHILD at INDEX in the parent's child list
         $self
     }
 
-=item C<appendItems LIST>
+=item C<< ->appendItems( LIST ) >>
 
 append a list of items
 
 =cut
     sub appendItems {
-        my $self = shift;
+        my ($self, @items) = @_;
         XUL::Gui::buffered {
             (XUL::Gui::isa XUL::Gui::Object)
                 ? $self->appendChild($_)
                 : $self->appendItem( ref eq 'ARRAY' ? @$_ : $_ )
-            for @_
-        } @_;
+            for @items
+        };
         $self
     }
 
-=item C<replaceItems LIST>
+=item C<< ->replaceItems( LIST ) >>
 
 removes all items, then appends LIST
 
@@ -865,13 +882,12 @@ removes all items, then appends LIST
 
 =cut
     sub replaceItems {
-        my $self = shift;
+        my ($self, @items) = @_;
         XUL::Gui::buffered {
-            XUL::Gui::noevents {
-                $self->removeItems
-                     ->appendItems( @_ )
-            } @_
-        } @_;
+        XUL::Gui::noevents {
+            $self->removeItems
+                 ->appendItems( @items )
+        }};
         $self
     }
 
@@ -988,7 +1004,7 @@ package #hide from cpan
             '/favicon.ico' => sub {
                 $server->write('text/plain', '');
             },
-            '/exit' => sub {$$server{run} = 0} #Add old code back from USB key
+            '/exit' => sub {$$server{run} = 0}
         );
         unless ($params{nolaunch}) {
             if ($^O =~ /darwin/) {
@@ -1003,21 +1019,18 @@ package #hide from cpan
                     : split /[:;]/ => $ENV{PATH};
 
                 if (@firefox = sort {length $$a[0] < length $$b[0]} @firefox) {
-                    my $insert  = $params{nochrome} ? '' : '-P "perl" -chrome ';
+                    my $insert  = $params{nochrome} ? '' : ' -chrome ';
                     message 'launching firefox';
                     unless ($$server{pid} = fork) {
                         $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
                         exec qq{"$firefox[0][1]" $insert "http://localhost:$port" } . (q{1>&2 2>/dev/null} x ($^O !~ /MSWin/));
                     }
-                    alarm 5; $SIG{ALRM} = sub {message "run 'firefox -P' and create a 'perl' profile"; exit};
                 }
                 else {message 'firefox not found: start manually'}
             }
         }
-
-        $$server{run} = 1;
-        run: while ($$server{client} = $$server{server}->accept) {
-                alarm 0; $SIG{ALRM} = 'IGNORE';
+         $$server{run} = 1;
+         while ($$server{client} = $$server{server}->accept) {
                 $$server{client}->autoflush(1);
                 message 'client connected';
                 while (local $req = $server->read) {
@@ -1032,7 +1045,7 @@ package #hide from cpan
                     last unless $$server{run}
                 }
                 close $$server{client};
-                last run unless $$server{run}
+                last unless $$server{run}
             }
         $server->stop('server stopped')
     }
@@ -1072,7 +1085,6 @@ package #hide from cpan
             $server->write( 'text/plain', 'RETURN '. eval $req{CONTENT} );
             %req = %{ $server->read };
         }
-
         \%req
     }
 
@@ -1092,7 +1104,7 @@ package #hide from cpan
 
     $client_js = <<'END';
 
-Object.prototype.__defineGetter__('__sid__', function(){
+Object.prototype.__defineGetter__('__sid__', function () {
     var sid = 0;
     return function(){
         var id = sid++;
@@ -1104,19 +1116,19 @@ Object.prototype.__defineGetter__('__sid__', function(){
     }
 }.call() );
 
-Object.prototype.toString = function(){
+Object.prototype.toString = function () {
     return '[Object ' + this.__sid__ + ']';
 };
 
-Function.prototype.cache = function(){
+Function.prototype.cache = function () {
     var cid = 0;
-    return function(strict, env){
+    return function (strict, env) {
         var self  = this;
         var cache = {};
         env = env || null;
         var args;
 
-        var getid = function(obj){
+        var getid = function (obj) {
             if (obj.__cid__) return obj.__cid__;
             var id = cid++;
             obj.__proto__ = {
@@ -1126,31 +1138,29 @@ Function.prototype.cache = function(){
             return id;
         };
 
-        var cached = function(){
+        var cached = function () {
             args = Array.prototype.slice.call(arguments);
             if (strict) args = args.map( function(arg) typeof arg == 'object' ?
                                             [arg.toSource(), getid(arg)] : arg );
             args = args.toSource();
-
-        //  document.writeln(args);
             return (args in cache)
                 ? cache[args]
                 : cache[args] = self.apply(env, arguments);
         };
 
-        cached.nocache = function(){ return self };
+        cached.nocache = function () { return self };
         return cached;
     }
 }.call();
 
-Function.prototype.extends = Object.prototype.extends = function(super){
+Function.prototype.extends = Object.prototype.extends = function (super) {
    this.prototype.__proto__ = super.prototype;
    this.prototype.__super = super;
 }
 
 
 
-Object.prototype.__defineGetter__('keys', function(){
+Object.prototype.__defineGetter__('keys', function ()  {
     var out = [];
     for (var i in this) {
         if (this.hasOwnProperty(i)) out.push(i);
@@ -1158,29 +1168,30 @@ Object.prototype.__defineGetter__('keys', function(){
     return out;
 });
 
-Object.prototype.__defineGetter__('values', function(){
+Object.prototype.__defineGetter__('values', function () {
     return this.keys.map( function (k) this[k], this )
 });
 
-var id = 0;
-var ID = {};
-var noEvents = {};
+var id          = 0;
+var ID          = {};
+var noEvents    = {};
 var cacheEvents = true;
-var ping = 250;
-var interval = setInterval(pinger, ping);
-var server = 'http://localhost:'+port+'/';
+var ping        = 250;
+var interval    = setInterval( pinger, ping );
+var server      = 'http://localhost:' + port + '/';
+var queue       = [];
+var mutex       = false;
+var perl        = new XMLHttpRequest();
 
-var perl = new XMLHttpRequest();
-
-function pinger() {
-    if(mutex || !cacheEvents) return;
+function pinger () {
+    if (mutex || !cacheEvents) return;
     mutex = true;
     send('ping', null)
     mutex = false;
 }
 
 var retre = new RegExp(/^RETURN (.*)/);
-function send(to, val){
+function send (to, val) {
     var url = server + to;
     var type;
     while (1) {
@@ -1189,49 +1200,38 @@ function send(to, val){
         if (perl.responseText != 'NOOP') {
             var ret = perl.responseText.match(retre);
             if (ret) return ret[1];
-            try {
-                val = eval( perl.responseText );
-            } catch(e) {
-                alert( [ e.name, perl.responseText, e.message ].join("\n\n") );
-            }
+            try {val = eval( perl.responseText )}
+            catch(e) {alert( [ e.name, perl.responseText, e.message ].join("\n\n") )}
 
             type = typeof val;
 
-            if (val == 0 && type != 'string') {
-                val = '0'
-            } else if (val == null) {
-                val = 'null'
-            }
+            if (val == 0 && type != 'string') {val = '0'}
+            else if (val == null) {val = 'null'}
 
             if (type == 'object') {
                 if (val.hasAttribute && val.hasAttribute('id'))
-                    val = 'OBJ ' + val.getAttribute('id');
+                    {val = 'OBJ ' + val.getAttribute('id')}
                 else {
                     ID[ 'xul_js_' + id ] = val;
                     val = 'OBJ xul_js_' + id++;
                 }
-            } else {
-                val = 'RES ' + val
             }
-        } else {
-            break
+            else {val = 'RES ' + val}
         }
+        else {break}
     }
     return val;
 }
 
-var queue = [];
-var mutex = false;
 
-
-var xul_id = function( obj ){
+var xul_id = function (obj) {
     while (obj.parentNode && obj.parentNode != obj) {
         if(obj.id) return obj.id
         obj = obj.parentNode
     }
 }.cache(true);
 
-function EVT(event){
+function EVT (event) {
     if (noEvents.__count__ > 0 && xul_id(event.target) in noEvents) return;
     if (mutex){
         if(cacheEvents && event)
@@ -1251,7 +1251,7 @@ function EVT(event){
     if(event) setTimeout(pinger, 10);
 }
 
-function GET(self, k){
+function GET (self, k) {
     if (typeof self.hasAttribute == 'function' && self.hasAttribute(k))
         return self.getAttribute(k);
 
@@ -1261,7 +1261,7 @@ function GET(self, k){
     return self[k];
 }
 
-function SET(self, k, v){
+function SET (self, k, v) {
     if (typeof self.hasAttribute == 'function'
             && self.hasAttribute(k) )
         return self.setAttribute(k, v);
@@ -1269,45 +1269,45 @@ function SET(self, k, v){
     return self[k] = v;
 }
 
-function quit(){
+function quit () {
     clearInterval(interval);
     EVT = function(){}
     window.close();
 }
 
-function removeChildren(element){
+function removeChildren (element) {
     while (element.firstChild)
         element.removeChild(element.firstChild);
 }
 
-function removeItems(element){
+function removeItems (element) {
     while (element.lastChild && element.lastChild.nodeName == 'listitem')
         element.removeChild(element.lastChild);
 }
 
-function scrollTo(element, x, y){
+function scrollTo (element, x, y) {
     element.boxObject.QueryInterface(
         Components.interfaces.nsIScrollBoxObject
     ).scrollTo(x, y);
 }
 
-function Perl(code){
+function Perl (code) {
     return send('perl', code)
 }
 
-function dialog(target, code) {
+function dialog (target, code) {
     return target.install(code)
 }
 
-function install(code){
+function install (code){
     return eval(code)
 }
 
-Element.prototype.computed = function( style ){
+Element.prototype.computed = function (style) {
     return document.defaultView.getComputedStyle( this, null ).getPropertyValue( style )
 }
 
-Element.prototype.noEvents = function( value ){
+Element.prototype.noEvents = function (value) {
     return value
         ? noEvents[this] = true
         : delete noEvents[this]
