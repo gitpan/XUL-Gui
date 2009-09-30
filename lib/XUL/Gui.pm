@@ -5,7 +5,7 @@ package XUL::Gui;
     use Carp;
     use Storable qw/dclone/;
     use List::Util qw/max/;
-    our $VERSION = '0.18';
+    our $VERSION = '0.19';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -14,7 +14,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.18
+version 0.19
 
 this module is under active development, interfaces may change.
 
@@ -29,7 +29,7 @@ this documentation is a work in progress
     use XUL::Gui;
     display Label 'hello, world!';
 
-    # short enough for you? (s/Label/P/ for bonus points) and of course you can do much more:
+    # short enough? s/Label/P/ for bonus points
 
     use XUL::Gui;
     display Window title => "XUL::Gui's long hello", minwidth=>300,
@@ -69,9 +69,19 @@ easy to distribute your application.
 
 all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
 be acted on as such.  for anything not written in this document or XUL::Gui::Manual,
-L<http://developer.mozilla.com/> is the official source of documentation.
+developer.mozilla.com is the official source of documentation:
 
-gui's created with module are event driven.  an arbitrarily complex (and runtime mutable)
+=over
+
+=item * L<https://developer.mozilla.org/en/XUL>
+
+=item * L<http://www.hevanet.com/acorbin/xul/top.xul> - XUL periodic table
+
+=item * L<https://developer.mozilla.org/En/Documentation_hot_links>
+
+=back
+
+gui's created with this module are event driven.  an arbitrarily complex (and runtime mutable)
 object tree is passed to C<display>, which then creates the gui in firefox and starts the
 event loop.  C<display> will wait for and respond to events until the C<quit> function is
 called, or the user closes the firefox window.
@@ -207,11 +217,10 @@ javascript event handlers have C<event> and C<this> set for you
 
 =item C<mapn {CODE} NUMBER LIST>
 
-map over n elements at a time
+map over n elements at a time in C<@_> and C<$_ == $_[0]>
 
-    mapn {print "@_" if $_ % 2} 3 => 1..10;
-    > 1 2 3
-    > 7 8 9
+    print mapn {$_ % 2 ? "@_" : " [@_] "} 3 => 1..20;
+    > 1 2 3 [4 5 6] 7 8 9 [10 11 12] 13 14 15 [16 17 18] 19 20
 
 =cut
     sub mapn (&$@) {
@@ -238,7 +247,7 @@ map over n elements at a time
 
 apply a function to a list and return that list
 
-    print join ", " => apply {s/two/one/} "this two", "and that two";
+    print join ", " => apply {s/$/ one/} "this", "and that";
     > this one, and that one
 
 =cut
@@ -271,9 +280,7 @@ alternate a variable between two states
         sub genid () {'xul_' . $id++}
     }
 
-    sub isa {
-        UNIVERSAL::isa @_ > 1 ? shift : $_, @_
-    }
+    sub isa {UNIVERSAL::isa @_ > 1 ? shift : $_, @_}
 
     sub parse {
         my (@C, %A, %M);
@@ -301,7 +308,7 @@ starts the http server, launches firefox, waits for events
 takes a list of gui objects, and several optional parameters:
 
     OPTION    VALUES  DEFAULT  DESCRIPTION
-    debug     0 - 3   0
+    debug     0 - 3   0        adjust verbosity to stderr
     nolaunch  BOOL    0        disables launching firefox, connect manually to http://localhost:8888
     nochrome  BOOL    0        chrome mode disables all normal firefox gui elements, setting this
                                option will turn those elements back on.
@@ -485,7 +492,7 @@ converts an XUL string to XUL::Gui objects
             s {(\w+)\s*=\s*(\S+)} "'$1'=>$2"g;
             s <([^\\](}|"|'))\s+> "$1,"g;
             return eval 'package '.caller().";$_"
-                or croak "XUL Parse Failure: $@\n\n$_";
+                or croak "XUL parse failure: $@\n\n$_";
         }
     }}
 
@@ -542,19 +549,23 @@ carps LIST with object details, and then returns LIST unchanged
             } @_[1..$#_]). ")\n";
     }
 
-=item C<Code JAVASCRIPT>
-
-executes its javascript at the moment it is written to the gui
-
-=cut
-    sub Code ($) {
+# =item C<Code JAVASCRIPT>
+#
+# embed javascript into a tree of gui objects
+#
+#	display Label('hello'), Code('alert("world")'), Label('!');
+#
+# subject to change/removal, for initialization callbacks, use C<delay> instead
+#
+# =cut
+    sub Code ($) { # deprecated
         my $c = object;
         $$c{CODE}   = shift;
         $$c{M}{run} = sub {gui( shift->{CODE} )};
         $c
     }
 
-    sub run { &gui }
+    sub run { &gui } # deprecated
 
 =item C<function JAVASCRIPT>
 
@@ -574,7 +585,7 @@ create a javascript function, useful for functions that need to be very fast, su
             my $func = 'ID.' . genid;
             delay( sub{
                 local *_ = \$ID{$id};
-                gui( "$func = function(event){ (function(){ ". eval(qq/"$js"/) ." }).call( ID.$id )  }" );
+                gui( "$func = function(event){ (function(){ ". eval(qq/"$js"/) ." }).call( ID.$id ) }" );
             });
             "$func(event)";
         } ] => 'XUL::Gui::FUNCTION'
@@ -660,6 +671,9 @@ execute immediately, from inside a buffered or cached block
 
 delays executing its CODE until the next gui refresh
 
+useful for triggering widget initialization code that needs to
+run after the gui objects are rendered
+
 =cut
     sub delay (&@) {
         my $code = shift;
@@ -696,16 +710,18 @@ force a gui update before an event handler finishes
 =head1 METHODS
 
     # access attributes and properties
-    $object->value = 5;     # sets the value in the gui
-    print $object->value;   # gets the value from the gui
+
+		$object->value = 5;     # sets the value in the gui
+		print $object->value;   # gets the value from the gui
 
     # the attribute is set if it exists, otherwise the property is set
 
-    $object->_value = 7;    # sets the property directly
+		$object->_value = 7;    # sets the property directly
 
     # function calls
-    $object->focus;                         # void context
-    $object->appendChild( H2('title') );    # or any arguments are always function calls
+
+		$object->focus;                         # void context
+		$object->appendChild( H2('title') );    # or any arguments are always function calls
 
 in addition to mirroring all of an object's existing javascript methods / attributes / and properties
 to perl (with identical spelling / capitalization), several default methods have been added to all objects
@@ -718,19 +734,17 @@ package #hide from cpan
     XUL::Gui::Object;
     use warnings;
     use strict;
-    my $search;
-    $search = sub {
-        my $self = shift;
-        my $method = shift;
-        if (exists $$self{M}{$method})
-           {return $$self{M}{$method}}
-        for (@{$$self{C}})
-            {defined and return $_ for $search->($_, $method)}
+    my $search; $search = sub {
+        my ($self, $method) = @_;
+		$self->{M}{$method} or do {
+			for (@{$$self{C}})
+				{defined and return $_ for $search->($_, $method)}
+		}
     };
 
     sub AUTOLOAD : lvalue {
         my $self = $_[0];
-        return unless ($self->{AL}) = our $AUTOLOAD =~ /([^:]+)$/;
+        return unless ($$self{AL}) = our $AUTOLOAD =~ /([^:]+)$/;
 
         if (my $method = $search->($self, $$self{AL})) { # perl method call
             if (ref $method eq 'ARRAY') {
@@ -746,9 +760,9 @@ package #hide from cpan
         }
 
         if (@_>1 or not defined wantarray) { # js method call
-            shift;
-            my ($js, $arg) = ('', '');
+            my ($js, $arg) = ('') x 2;
             $_->($self), return for $$self{uc $$self{AL}} or ();
+			shift;
             shift if @_ and $_[0] eq '_';
             $arg = join ',', map {
                 XUL::Gui::isa XUL::Gui::Object and do
@@ -777,11 +791,6 @@ package #hide from cpan
         $self
     }
 
-=item C<< ->toXUL >>
-
-returns an object as an XUL string
-
-=cut
     sub toXUL {
         my $self = shift;
         my $tab  = shift || 0;
@@ -789,9 +798,7 @@ returns an object as an XUL string
 
         $self->{DIRTY} = 0;
         $self->registerEvents;
-
-        if (defined $$self{CODE})
-           {return  $$self{CODE}}
+		defined and return $_ for $$self{CODE};
 
         push @xul, "<$self->{TAG} ";
         push @xul, qq{$_="$self->{A}{$_}" } for keys %{$self->{A}};
@@ -804,11 +811,6 @@ returns an object as an XUL string
         join '' => @xul
     }
 
-=item C<< ->toJS >>
-
-returns an object as a javascript string
-
-=cut
     sub toJS {
         my ($self, $final) = @_;
         my @js;
@@ -816,9 +818,7 @@ returns an object as a javascript string
 
         $$self{DIRTY} = 0;
         $self->registerEvents;
-
-        if (defined $$self{CODE})
-           {return  $$self{CODE}}
+		defined and return $_ for $$self{CODE};
 
         push @js, $_->toJS for @{$$self{C}};
         push @js, qq{$id = document.createElement} .
@@ -1058,19 +1058,22 @@ package #hide from cpan
                 system qq[osascript -e 'tell application "Firefox" to OpenURL "http://localhost:$port"']
             } else {
                 my @firefox;
-                map {my $dir = $_;
-                     find sub{ push @firefox, [$_, $File::Find::name] if /^firefox(?:-bin|\.exe)?$/ and -f } => $_
-                        for grep {/mozilla|firefox/i} map {"$dir/$_"} (-d and chdir $_) ? <*> : ()
-                } ($^O =~ /MSWin/)
-                    ? (map {chomp; "$_\\"} split ',' => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`)
-                    : split /[:;]/ => $ENV{PATH};
+				for my $dir	(
+					($^O =~ /MSWin/)
+						? (map {chomp; "$_\\"} split ',' => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`)
+						: split /[:;]/ => $ENV{PATH}
+				){
+					find sub{ push @firefox, [$_, $File::Find::name] if /^firefox(?:-bin|\.exe)?$/ and -f } => $_
+                        for grep {/mozilla|firefox/i} map {"$dir/$_"} grep -d, (-d $dir and chdir $dir) ? <*> : ()
+                }
 
                 if (@firefox = sort {length $$a[0] < length $$b[0]} @firefox) {
                     my $insert  = $params{nochrome} ? '' : ' -chrome ';
                     message 'launching firefox';
                     unless ($$server{pid} = fork) {
                         $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
-                        exec qq{"$firefox[0][1]" $insert "http://localhost:$port" } . (q{1>&2 2>/dev/null} x ($^O !~ /MSWin/));
+                        exec qq{"$firefox[0][1]" $insert "http://localhost:$port" }
+							 .(q{1>&2 2>/dev/null} x ($^O !~ /MSWin/))
                     }
                 }
                 else {message 'firefox not found: start manually'}
@@ -1374,39 +1377,7 @@ please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or 
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=XUL-Gui>.
 I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
-
-=head1 SUPPORT
-
-you can find documentation for this module with the perldoc command.
-
-    perldoc XUL::Gui
-
-
-you can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=XUL-Gui>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/XUL-Gui>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/XUL-Gui>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/XUL-Gui/>
-
-=back
-
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
