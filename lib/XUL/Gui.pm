@@ -5,7 +5,7 @@ package XUL::Gui;
     use Carp;
     use Storable qw/dclone/;
     use List::Util qw/max/;
-    our $VERSION = '0.19';
+    our $VERSION = '0.20';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -14,7 +14,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.19
+version 0.20
 
 this module is under active development, interfaces may change.
 
@@ -553,7 +553,7 @@ carps LIST with object details, and then returns LIST unchanged
 #
 # embed javascript into a tree of gui objects
 #
-#	display Label('hello'), Code('alert("world")'), Label('!');
+#   display Label('hello'), Code('alert("world")'), Label('!');
 #
 # subject to change/removal, for initialization callbacks, use C<delay> instead
 #
@@ -711,17 +711,17 @@ force a gui update before an event handler finishes
 
     # access attributes and properties
 
-		$object->value = 5;     # sets the value in the gui
-		print $object->value;   # gets the value from the gui
+        $object->value = 5;     # sets the value in the gui
+        print $object->value;   # gets the value from the gui
 
     # the attribute is set if it exists, otherwise the property is set
 
-		$object->_value = 7;    # sets the property directly
+        $object->_value = 7;    # sets the property directly
 
     # function calls
 
-		$object->focus;                         # void context
-		$object->appendChild( H2('title') );    # or any arguments are always function calls
+        $object->focus;                         # void context
+        $object->appendChild( H2('title') );    # or any arguments are always function calls
 
 in addition to mirroring all of an object's existing javascript methods / attributes / and properties
 to perl (with identical spelling / capitalization), several default methods have been added to all objects
@@ -736,10 +736,10 @@ package #hide from cpan
     use strict;
     my $search; $search = sub {
         my ($self, $method) = @_;
-		$self->{M}{$method} or do {
-			for (@{$$self{C}})
-				{defined and return $_ for $search->($_, $method)}
-		}
+        $self->{M}{$method} or do {
+            for (@{$$self{C}})
+                {defined and return $_ for $search->($_, $method)}
+        }
     };
 
     sub AUTOLOAD : lvalue {
@@ -762,7 +762,7 @@ package #hide from cpan
         if (@_>1 or not defined wantarray) { # js method call
             my ($js, $arg) = ('') x 2;
             $_->($self), return for $$self{uc $$self{AL}} or ();
-			shift;
+            shift;
             shift if @_ and $_[0] eq '_';
             $arg = join ',', map {
                 XUL::Gui::isa XUL::Gui::Object and do
@@ -798,7 +798,7 @@ package #hide from cpan
 
         $self->{DIRTY} = 0;
         $self->registerEvents;
-		defined and return $_ for $$self{CODE};
+        defined and return $_ for $$self{CODE};
 
         push @xul, "<$self->{TAG} ";
         push @xul, qq{$_="$self->{A}{$_}" } for keys %{$self->{A}};
@@ -818,7 +818,7 @@ package #hide from cpan
 
         $$self{DIRTY} = 0;
         $self->registerEvents;
-		defined and return $_ for $$self{CODE};
+        defined and return $_ for $$self{CODE};
 
         push @js, $_->toJS for @{$$self{C}};
         push @js, qq{$id = document.createElement} .
@@ -1058,12 +1058,12 @@ package #hide from cpan
                 system qq[osascript -e 'tell application "Firefox" to OpenURL "http://localhost:$port"']
             } else {
                 my @firefox;
-				for my $dir	(
-					($^O =~ /MSWin/)
-						? (map {chomp; "$_\\"} split ',' => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`)
-						: split /[:;]/ => $ENV{PATH}
-				){
-					find sub{ push @firefox, [$_, $File::Find::name] if /^firefox(?:-bin|\.exe)?$/ and -f } => $_
+                for my $dir (
+                    ($^O =~ /MSWin/)
+                        ? (map {chomp; "$_\\"} split ',' => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`)
+                        : split /[:;]/ => $ENV{PATH}
+                ){
+                    find sub{ push @firefox, [$_, $File::Find::name] if /^firefox(?:-bin|\.exe)?$/ and -f } => $_
                         for grep {/mozilla|firefox/i} map {"$dir/$_"} grep -d, (-d $dir and chdir $dir) ? <*> : ()
                 }
 
@@ -1073,7 +1073,7 @@ package #hide from cpan
                     unless ($$server{pid} = fork) {
                         $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
                         exec qq{"$firefox[0][1]" $insert "http://localhost:$port" }
-							 .(q{1>&2 2>/dev/null} x ($^O !~ /MSWin/))
+                             .(q{1>&2 2>/dev/null} x ($^O !~ /MSWin/))
                     }
                 }
                 else {message 'firefox not found: start manually'}
