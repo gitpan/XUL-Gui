@@ -24,7 +24,7 @@ sub magic_number_matches {
   open FH, '_build\\magicnum' or return 0;
   my $filenum = <FH>;
   close FH;
-  return $filenum == 328948;
+  return $filenum == 456970;
 }
 
 my $progname;
@@ -33,7 +33,7 @@ BEGIN {
   $^W = 1;  # Use warnings
   $progname = basename($0);
   $orig_dir = Cwd::cwd();
-  my $base_dir = 'R:\\PROG\\PERL\\GUI\\XUL\\CPAN\\XUL-GUI';
+  my $base_dir = 'R:\\PROG\\PERL\\MODULES\\XUL-GUI';
   if (!magic_number_matches()) {
     unless (chdir($base_dir)) {
       die ("Couldn't chdir($base_dir), aborting\n");

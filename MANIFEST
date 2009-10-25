@@ -3,10 +3,12 @@ Build.PL
 Changes
 ignore.txt
 lib/XUL/Gui.pm
+lib/XUL/Gui/Manual.pm
 Makefile.PL
 MANIFEST
 README
 t/00-load.t
 t/boilerplate.t
 t/pod.t
+t/xulgui.t
 META.yml
