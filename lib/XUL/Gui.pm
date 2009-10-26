@@ -5,7 +5,7 @@ package XUL::Gui;
     use Carp;
     use Storable qw/dclone/;
     use List::Util qw/max/;
-    our $VERSION = '0.21';
+    our $VERSION = '0.25';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -588,23 +588,7 @@ carps LIST with object details, and then returns LIST unchanged
             } @_[1..$#_]). ")\n";
     }
 
-# =item C<Code JAVASCRIPT>
-#
-# embed javascript into a tree of gui objects
-#
-#   display Label('hello'), Code('alert("world")'), Label('!');
-#
-# subject to change/removal, for initialization callbacks, use C<delay> instead
-#
-# =cut
-#    sub Code ($) { # deprecated
-#        my $c = object;
-#        $$c{CODE}   = shift;
-#        $$c{M}{run} = sub {gui( shift->{CODE} )};
-#        $c
-#    }
-#
-#    sub run { &gui } # deprecated
+
 
 =item C<function JAVASCRIPT>
 
@@ -1411,7 +1395,7 @@ END
 =head1 CAVEATS
 
 currently, it is not possible to open more than one window, or to use
-any features availabled to privileged chrome apps. in most cases you
+any features available to privileged chrome apps. in most cases you
 can get away with doing what you need in perl, but having proper file
 dialogs and drag/drop would be nice, so this is near the top of my
 todo list.
