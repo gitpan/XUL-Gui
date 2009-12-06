@@ -1,6 +1,6 @@
 ---
 name: XUL-Gui
-version: 0.25
+version: 0.30
 author:
   - 'Eric Strom <ejstrom@gmail.com>'
 abstract: display cross platform gui apps with firefox
@@ -10,14 +10,14 @@ resources:
 build_requires:
   Test::More: 0
 configure_requires:
-  Module::Build: 0.35
+  Module::Build: 0.34
 provides:
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.25
+    version: 0.30
   XUL::Gui::Manual:
     file: lib/XUL/Gui/Manual.pm
-generated_by: Module::Build version 0.35
+generated_by: Module::Build version 0.34
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
