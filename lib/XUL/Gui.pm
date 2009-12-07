@@ -6,7 +6,7 @@ package XUL::Gui;
     use Storable 'dclone';
     use List::Util 'max';
     use MIME::Base64 'encode_base64';
-    our $VERSION = '0.30';
+    our $VERSION = '0.31';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -15,7 +15,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.30
+version 0.31
 
 this module is under active development, interfaces may change.
 
@@ -205,12 +205,22 @@ multiple 'style' attributes are joined with ';' into a single attribute
         RT RTC RUBY S SAMP SCRIPT SELECT SMALL SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE
         TBODY TD TEXTAREA TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
 
-    for the OO purists:
+    if you prefer an OO interface:
 
-        use XUL::Gui ();
-        my $gui = XUL::Gui->new;
-        $gui->display( $gui->Label('hello world') );
-        # use $gui->id('someid') to access the %ID hash;
+        use XUL::Gui ();         # or any tags you want
+        my $gui = XUL::Gui->oo;  # $gui now has XUL::Gui's namespace as methods
+
+        $gui->display( $gui->Label('hello world') );        # is the same as
+        XUL::Gui::display( XUL::Gui::Label('hello world'));
+
+        use $gui->id('someid') or $gui->ID('someid') to access the %ID hash
+
+        the XUL tags are also available in lc and lcfirst:
+            $gui->label       == XUI::Gui::Label
+            $gui->colorpicker == XUL::Gui::ColorPicker
+            $gui->colorPicker == XUL::Gui::ColorPicker
+
+        the HTML tags are also available in lc, unless an XUL tag of the same name exists
 
 =cut
 
@@ -262,23 +272,6 @@ multiple 'style' attributes are joined with ';' into a single attribute
     );
     our $server ||= XUL::Gui::Server->init;
     our (%ID, %_ID, %dialogs);
-
-{package
-    XUL::Gui::OO;
-    use strict;
-    use warnings;
-    our %lookup = map {lc, $_} @{ $EXPORT_TAGS{xul} };
-    sub AUTOLOAD {
-        shift;
-        no strict 'refs';
-        my ($sub) = our $AUTOLOAD =~ /([^:]+)$/;
-        goto &{'XUL::Gui::' . ($lookup{lc $sub} || $sub)};
-    }
-    sub DESTROY {}
-    sub id :lvalue {$XUL::Gui::ID{$_[1]}}
-    sub ID :lvalue {$XUL::Gui::ID{$_[1]}}
-}
-    sub new {bless {} => 'XUL::Gui::OO'}
 
 =head1 FUNCTIONS
 
@@ -414,6 +407,25 @@ tag's src attribute. arguments are the same as C<bitmap()>
         }
         C => \@C, A => \%A, M => \%M
     }
+
+    sub oo {
+        no strict 'refs';
+        my $pkg = 'XUL::Gui::OO::';
+        unless (defined &{$pkg.'id'}) {
+            my %methods = (
+                (map {lc, $_} grep {!/_/} keys %HTML),
+                (map {lcfirst, $_} @Xul),
+                (map {$_, $_} grep {not /\W/} @EXPORT_OK),
+            );
+            for my $sub (keys %methods) {
+                *{$pkg.$sub} = sub {shift; goto &{"XUL::Gui::$methods{$sub}"}}
+            }
+            *{$pkg.'ID'} = *{$pkg.'id'} =
+                sub :lvalue {$XUL::Gui::ID{$_[1]}}
+        }
+        bless {} => 'XUL::Gui::OO'
+    }
+
 
 =back
 
