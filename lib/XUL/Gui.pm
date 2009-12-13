@@ -6,7 +6,8 @@ package XUL::Gui;
     use Storable 'dclone';
     use List::Util 'max';
     use MIME::Base64 'encode_base64';
-    our $VERSION = '0.31';
+    use Encode 'encode';
+    our $VERSION = '0.35';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -15,7 +16,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.31
+version 0.35
 
 this module is under active development, interfaces may change.
 
@@ -96,9 +97,7 @@ the goal of this module is to make gui development as easy as possible. XUL's wi
 nested design structure gets us most of the way there, and this module with its light weight
 syntax, and "Do What I Mean" nature hopefully finishes the job.  everything has sensible
 defaults with minimal boilerplate, and nested design means a logical code flow that isn't
-littered with variables.  now you can focus on your gui's design and functionality, and
-hopefully not on the deficiencies of your toolkit. if XUL::Gui doesn't get you all the way
-there yet, give it time, I'm still working on it.
+littered with variables.  please send feedback if you think anything could be improved.
 
 =head2 tags
 
@@ -169,7 +168,7 @@ multiple 'style' attributes are joined with ';' into a single attribute
     use XUL::Gui;   # is the same as
     use XUL::Gui qw/:base :util :widget :pragma :xul :html :const :image/;
 
-    the following export tags are available.  :base is required for minimal functionality
+    the following export tags are available:
 
     :base       %ID display quit alert function gui XUL
     :widget     @C %A %M $W widget attribute extends
@@ -205,24 +204,27 @@ multiple 'style' attributes are joined with ';' into a single attribute
         RT RTC RUBY S SAMP SCRIPT SELECT SMALL SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE
         TBODY TD TEXTAREA TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
 
-    if you prefer an OO interface:
+constants:
 
-        use XUL::Gui ();         # or any tags you want
-        my $gui = XUL::Gui->oo;  # $gui now has XUL::Gui's namespace as methods
+    FLEX    flex => 1
+    FILL    flex => 1, align =>'stretch'
+    FIT     sizeToContent => 1
+    SCROLL  style => 'overflow: auto'
+    MIDDLE  align => 'center', pack => 'center'
 
-        $gui->display( $gui->Label('hello world') );        # is the same as
-        XUL::Gui::display( XUL::Gui::Label('hello world'));
+    each is a function that returns its constant, prepended to
+    its arguments, thus the following are both valid:
 
-        use $gui->id('someid') or $gui->ID('someid') to access the %ID hash
-
-        the XUL tags are also available in lc and lcfirst:
-            $gui->label       == XUI::Gui::Label
-            $gui->colorpicker == XUL::Gui::ColorPicker
-            $gui->colorPicker == XUL::Gui::ColorPicker
-
-        the HTML tags are also available in lc, unless an XUL tag of the same name exists
+    Box FILL pack=>'end';
+    Box FILL, pack=>'end';
 
 =cut
+
+    sub FLEX   {flex  => 1,                   @_}
+    sub FILL   {align => 'stretch', FLEX,     @_}
+    sub FIT    {sizeToContent => 1,           @_}
+    sub SCROLL {style => 'overflow: auto',    @_}
+    sub MIDDLE {qw/align center pack center/, @_}
 
     our @Xul = map {$_, (ucfirst lc) x /.[A-Z]/}
         qw/Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet
@@ -273,7 +275,509 @@ multiple 'style' attributes are joined with ';' into a single attribute
     our $server ||= XUL::Gui::Server->init;
     our (%ID, %_ID, %dialogs);
 
+    {my $id = 0;
+        sub genid () {'xul_' . $id++}
+    }
+
+    sub isa {UNIVERSAL::isa( (@_, $_)[1, 0] )}
+
+    sub parse {
+        my (@C, %A, %M);
+        while (local $_ = shift) {
+            if (isa 'XUL::Gui::Object') {push @C, $_; next}
+            grep {not defined and $_ = '???'} $_, $_[0]
+                and croak "parse failure: [ $_ => $_[0] ] @_[1..$#_],";
+            s/^-//;
+            if (/^on/ or ref $_[0] ne 'CODE') {
+                /^style$/ and $A{$_} .= (shift).';'
+                          or  $A{$_}  =  shift}
+            else             {$M{$_}  =  shift}
+        }
+        C => \@C, A => \%A, M => \%M
+    }
+
+=pod
+
+if you prefer an OO interface:
+
+    use XUL::Gui ();         # or anything you do want
+    my $gui = XUL::Gui->oo;  # $gui now has XUL::Gui's namespace as methods
+
+    $gui->display( $gui->Label('hello world') );        # is the same as
+    XUL::Gui::display( XUL::Gui::Label('hello world') );
+
+    use $gui->id('someid') or $gui->ID('someid') to access the %ID hash
+
+    the XUL tags are also available in lc and lcfirst:
+        $gui->label       == XUI::Gui::Label
+        $gui->colorpicker == XUL::Gui::ColorPicker
+        $gui->colorPicker == XUL::Gui::ColorPicker
+
+    the HTML tags are also available in lc, unless an XUL tag of the same name exists
+
+    the oo constructor can be passed a package name to export into:
+
+        XUL::Gui->oo('g');                     # dies if the package isn't empty
+        g->display( g->label('hello world') ); # only 3 strokes over par :)
+
+=cut
+
+    {my %loaded;
+    sub oo {
+        no strict 'refs';
+        my $pkg = ($_[1] || 'XUL::Gui::OO') . '::';
+        if (defined %$pkg) {
+            $loaded {$pkg} or croak "package '$pkg' not empty"
+        } else {
+            $loaded {$pkg} ++;
+            my %methods = (
+                (map {lc, $_} grep {not /_/} @{$EXPORT_TAGS{const}}, keys %HTML),
+                (map {lcfirst, $_} @Xul),
+                (map {$_, $_} grep {not /\W/} @EXPORT_OK),
+            );
+            for my $sub (keys %methods) {
+                *{$pkg.$sub} = sub {shift; goto &{"XUL::Gui::$methods{$sub}"}}
+            }
+            *{$pkg.'ID'} = *{$pkg.'id'} = sub :lvalue {$XUL::Gui::ID{$_[1]}};
+        }
+        bless {} => substr $pkg, 0, -2;
+    }}
+
 =head1 FUNCTIONS
+
+=head2 gui functions
+
+=over 8
+
+=item C<display LIST>
+
+starts the http server, launches firefox, waits for events
+
+takes a list of gui objects, and several optional parameters:
+
+    debug     (0) .. 3   adjust verbosity to stderr
+    silent    (0) 1      disables all status messages
+    nolaunch  (0) 1      disables launching firefox, connect manually to http://localhost:8888
+    nochrome  (0) 1      chrome mode disables all normal firefox gui elements, setting this
+                         option will turn those elements back on.
+    port      (8888)     first port to try starting the server on, port++ after that
+    delay  milliseconds  delays each gui update cycle
+
+if the first object is a C<Window>, that window is created, otherwise a default
+one is added. the remaining objects are then added to the window.
+
+C<display> will not return until the the gui quits
+
+see SYNOPSYS and XUL::Gui::Manual for more details
+
+=cut
+    sub display {$server->start( &parse )}
+
+    sub dialog {croak 'dialog not implemented yet'}
+
+=item C<quit>
+
+shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
+
+=cut
+    sub quit {
+        gui('quit();') unless @_;
+        $$server{run} = 0;
+    }
+
+=item C<serve PATH MIMETYPE DATA>
+
+add a virtual file to the server
+
+    serve '/myfile.jpg', 'text/jpeg', $jpegdata;
+
+the paths C<qw( / /client.js /event /ping /exit /perl )> are reserved
+
+=cut
+    sub serve {$server->serve(@_)}
+
+=item C<object TAGNAME LIST>
+
+creates a gui proxy object, allows run time addition of custom tags
+
+    object('Label', value=>'hello') is the same as Label( value=>'hello' )
+
+=cut
+    sub object {
+        my $tag = lc shift;
+        unshift @_, @{ $defaults{$tag} } if $defaults{$tag};
+        bless my $self = {
+            TAG   => $tag,
+            DIRTY => $tag,
+            &parse
+        } => 'XUL::Gui::Object';
+        $$self{ID} = $$self{A}{id} ||= genid;
+        $tag ? $ID{ $$self{ID} } = $self
+             : $self;
+    }
+
+=item C<tag NAME>
+
+returns a code ref that generates proxy objects, allows for user defined tag functions
+
+    *mylabel = tag 'label';
+
+    \&mylabel == \&Label
+
+=cut
+    sub tag {
+        my @args = @_;
+        sub {
+            object @args,
+                (@_ == 1 and not isa 'XUL::Gui::Object' => $_[0])
+                    ? 'TEXT' : (),
+                @_
+        }
+    }
+
+    no strict 'refs';
+
+    *$_ = tag $_        for @Xul;
+    *$_ = tag $HTML{$_} for keys %HTML;
+
+
+=item C<widget {CODE} HASH>
+
+group tags together into common patterns, with methods and inheritance
+
+    *MyWidget = widget {
+        Hbox(
+            Label( value=> $A{label} ),
+            Button( label=>'OK', attribute 'oncommand' ),
+            @C
+        )
+    }   method  => sub{ ... },
+        method2 => sub{ ... };
+
+    $ID{someobject}->appendChild( MyWidget( label=>'widget', oncommand=>\&event_handler ) );
+
+    inside widgets, several variables are defined
+    variable    contains the passed in
+       %A           attributes
+       @C           children
+       %M           methods
+       $W           a reference to the current widget
+
+    much more detail in XUL::Gui::Manual
+
+=cut
+    sub widget (&%) {
+        my ($code, %methods, $sub) = @_;
+        $sub = sub {
+            my %data;
+            while (my ($k, $v) = each %methods)
+                {$data{$k} = dclone $v if ref $v ne 'CODE'}
+
+            my $subwidget = defined %_ID;
+            local *_ID = \%ID unless $subwidget;
+
+            my %arg = parse @_;
+            my $wid = $subwidget ? genid : $arg{A}{id} || genid;
+            @arg{qw/M T ID/} = ({ %methods, %{ $arg{M} } }, $sub, $wid);
+
+            my ($C, $A, $M, $W, $cID) = map {(caller)."::$_"} qw/C A M W ID/;
+            local (*$C, *$A, *$M)     = @arg{qw/C A M/};
+            local $$W = $_ID{$wid}    = bless {%data, %arg} => 'XUL::Gui::Object';
+            $ID{$$A{id} || genid }    = $_ID{$wid} if $subwidget;
+
+            local %ID;
+            local *$cID = \%ID;
+            $_ID{$wid}{WIDGET} = [ &$code ]; # NOT FINAL
+
+            for my $k (keys %data) { $$M{$k} = sub : lvalue {$data{$k}} }
+            $_ID{$wid}{M} = { %methods, %$M };
+
+            for my $i (keys %ID) { # refactor to reduce copying
+                $_ID{$wid}{$i} = $_ID{ my $gid = genid } = $ID{$i};
+                next unless isa 'XUL::Gui::Object' => $ID{$i};
+                $ID{$i}{N}    = $ID{$i}{A}{id};
+                $ID{$i}{ID}   = $ID{$i}{A}{id} = $gid;
+                $ID{$i}{W}    = $_ID{$wid};
+                $ID{$i}{$_} ||= $ID{$_} for keys %ID;
+                $ID{$i}{$_} ||= $$A{$_} for keys %$A;
+            }
+            wantarray ? @{ $_ID{$wid}{WIDGET} } : $_ID{$wid}{WIDGET}[0];
+        }
+    }
+
+=item C<extends OBJECT>
+
+indicate that a widget inherits from another widget or tag
+
+    *MySubWidget = widget {extends MyWidget}
+        submethod => sub{...};
+
+    more details in XUL::Gui::Manual
+
+=cut
+    sub extends {
+        croak 'extends only works inside widgets' unless defined %_ID;
+        $ID{$_} = $_[0]{W}{$_} for grep {/[a-z]/} keys %{ $_[0]{W} };
+        %{ (caller).'::M' } = %{ $_[0]{W}{M} };
+        @_
+    }
+
+=item C<attribute NAME>
+
+includes an attribute name if it exists, only works inside of widgets.
+NAME is split on whitespace
+
+    attribute 'label type' # is syntactic sugar for
+    map {$_ => $A{$_}} grep {exists $A{$_}} qw/label type/
+
+    attribute '+' # same as %A
+    attribute '*' # any untouched attributes (by attribute)
+
+=cut
+    sub attribute ($) {
+        croak 'attribute only works inside widgets' unless defined %_ID;
+        my ($A, $W, @ret) = ((caller).'::A', (caller).'::W');
+        my @keys = grep {
+            $_ eq '*' ? do {push @ret, %$A; 0} :
+            $_ eq '+' ? do {push @ret, map {$_ => $$A{$_}}
+                grep {not $$W{SEEN}{$_}} keys %$A; 0
+            } : 1
+        } split /\s+/ => shift;
+        $$W{SEEN}{$_}++ for @keys;
+        @ret, map {$_ => $$A{$_}} grep {exists $$A{$_}} @keys
+    }
+
+
+=item C<XUL STRING>
+
+converts an XML XUL string to XUL::Gui objects.  experimental.
+
+this function is provided to facilitate drag and drop of XML based XUL from tutorials for testing.
+the perl functional syntax for tags should be used in all other cases
+
+=cut
+    {my %xul; @xul{map lc, @Xul} = @Xul;
+    sub XUL {
+        for ("@_") {
+            s {<(\w+)(.+?)}       "$xul{lc $1}($2"g;
+            s {/>}                '),'g;
+            s {</\w+>}            '),'g;
+            s {>}                 ''g;
+            s {(\w+)\s*=\s*(\S+)} "'$1'=>$2"g;
+            s <([^\\](}|"|'))\s+> "$1,"g;
+            return eval 'package '.caller().";$_"
+                or carp "content skipped due to parse failure: $@\n\n$_";
+        }
+    }}
+
+=item C<alert STRING>
+
+open an alert message box
+
+=cut
+    sub alert {
+        my $msg = &escape;
+        gui( "alert('$msg');" );
+        wantarray ? @_ : pop
+    }
+
+=item C<trace LIST>
+
+carps LIST with object details, and then returns LIST unchanged
+
+=cut
+    sub trace {
+        my $caller = caller;
+        carp 'trace: ', join ', ' => map {
+            (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
+        } @_;
+        wantarray ? @_ : pop
+    }
+
+    {my %cache;
+    sub lookup {
+        my $self = shift;
+        return $cache{$self} if $cache{$self};
+        return $$self{ID} unless $$self{W} || $$self{T};
+        no warnings;
+        our %space;
+        local *space = \%{"$_[0]\::"};
+        for (keys %space) {
+            eval {*{$space{$_}}{CODE}} == ($$self{T} || $$self{W}{T})
+                and return $cache{$self} = $_ .
+                    ($$self{T}
+                        ? '{'
+                        : '{'.($$self{W}{A}{id} || $$self{W}{ID}).'}->{'
+                    ).($$self{N} || $$self{ID}).'}'
+        }
+        $$self{ID}
+    }}
+
+    use strict 'refs';
+
+    sub calltrace {
+        my $self = $_[0];
+        my $caller = caller 1;
+        our $AUTOLOAD =~ /([^:]+)$/;
+        lookup($self, $caller) . "->$1(" .
+            (join ',' => map {
+                (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
+            } @_[1..$#_]) . ")\n";
+    }
+
+
+=item C<function JAVASCRIPT>
+
+create a javascript function, useful for functions that need to be very fast, such as rollovers
+
+    Button( label=>'click me', oncommand=> function q{
+        this.label = 'ouch';
+        alert('hello from javascript');
+    })
+
+    to access widget siblings by id, wrap the id with C< W{...} >
+
+=cut
+    sub function ($) {
+        my $js = shift;
+        bless [ sub {
+            my $self = shift;
+            my $func = 'ID.' . genid;
+            delay( sub {
+                $js =~ s[\$?W{\s*(\w+)\s*}] [ID.$$self{W}{$1}{ID}]g;
+                gui(
+                    "$func = function (event) {
+                    (function(){ $js }).call( ID.$$self{ID} )
+                }" )
+            });
+            "$func(event)"
+        } ] => 'XUL::Gui::Function'
+    }
+
+    sub escape {
+        for ("@_") {
+            s/\\/\\\\/g;
+            s/\n/\\n/g;
+            s/\r/\\r/g;
+            s/'/\\'/g;
+            return encode ascii => $_, sub {sprintf '\u%04X', $_[0]}
+        }
+    }
+
+=item C<gui JAVASCRIPT>
+
+executes JAVASCRIPT
+
+=back
+
+=cut
+
+    {my ($buffered, @buffer, $cached, %cache, $now);
+        sub gui :lvalue {
+            push @_, "\n";
+            unless ($now) {
+                push @buffer, @_ and return if $buffered;
+                return $cache{$_[0]} if exists $cache{$_[0]}
+            }
+            $server->write('text/plain', "@_");
+            my $res = $server->safe_read->{CONTENT};
+            croak "invalid response: $res" unless $res =~ /^(...) (.*)/s;
+
+            $res = $1 eq 'OBJ' ?
+                ($ID{$2} || object undef, id=>$2) : $2;
+            $cache{$_[0]} = $res if $cached and $_[0] =~ /^(GET|0)/;
+            $res
+        }
+
+=head2 pragmatic blocks
+
+the following functions all apply pragmas to their CODE blocks.
+in some cases, they also take a list. this list will be C<@_> when
+the CODE block executes.  this is useful for sending in values
+from the gui, if you don't want to use a C<now {block}>
+
+=over 8
+
+=item C<buffered {CODE} LIST>
+
+delays sending gui updates
+
+    buffered {
+        $ID{$_}->value = '' for qw/a bunch of labels/
+    }; # all labels are cleared at once
+
+=cut
+        sub buffered (&@) {
+            $buffered++;
+            &{+shift};
+            gui(@buffer),
+                @buffer = () unless --$buffered;
+        }
+
+=item C<cached {CODE}>
+
+turns on caching of gets from the gui
+
+=cut
+        sub cashed (&) {
+            $cached++;
+            my $ret = shift->();
+            %cache = () unless --$cached;
+            $ret;
+        }
+
+=item C<now {CODE}>
+
+execute immediately, from inside a buffered or cached block
+
+=cut
+        sub now (&) {
+            $now++;
+            my @ret = shift->();
+            $now--;
+            wantarray ? @ret : $ret[0];
+        }
+    }
+
+=item C<delay {CODE} LIST>
+
+delays executing its CODE until the next gui refresh
+
+useful for triggering widget initialization code that needs to
+run after the gui objects are rendered
+
+=cut
+    sub delay (&@) {
+        my $code = shift;
+        my @args = @_;
+        push @{$$server{queue}}, sub{ $code->(@args) };
+        return;
+    }
+
+=item C<noevents {CODE} LIST>
+
+disable event handling
+
+=cut
+    sub noevents (&@) {
+        gui('cacheEvents = false;');
+        my @ret = &{+shift};
+        gui('cacheEvents = true;');
+        @ret;
+    }
+
+=item C<doevents>
+
+force a gui update before an event handler finishes
+
+=back
+
+=cut
+    sub doevents () {
+        $server->write('text/plain', 'NOOP');
+        $server->read; # should be safe_read
+        return;
+    }
 
 =head2 utility functions
 
@@ -381,497 +885,14 @@ tag's src attribute. arguments are the same as C<bitmap()>
 
     $ID{myimage}->src = bitmap2src 320, 180, @image_data;
 
+=back
+
 =cut
 
     sub bitmap2src {
         'data:image/bitmap;base64,' . encode_base64 &bitmap
     }
 
-    {my $id = 0;
-        sub genid () {'xul_' . $id++}
-    }
-
-    sub isa {UNIVERSAL::isa( (@_, $_)[1, 0] )}
-
-    sub parse {
-        my (@C, %A, %M);
-        while (local $_ = shift) {
-            if (isa 'XUL::Gui::Object') {push @C, $_; next}
-            grep {not defined and $_ = '???'} $_, $_[0]
-                and croak "parse failure: [ $_ => $_[0] ] @_[1..$#_],";
-            s/^-//;
-            if (/^on/ or ref $_[0] ne 'CODE') {
-                /^style$/ and $A{$_} .= (shift).';'
-                          or  $A{$_}  =  shift}
-            else             {$M{$_}  =  shift}
-        }
-        C => \@C, A => \%A, M => \%M
-    }
-
-    sub oo {
-        no strict 'refs';
-        my $pkg = 'XUL::Gui::OO::';
-        unless (defined &{$pkg.'id'}) {
-            my %methods = (
-                (map {lc, $_} grep {!/_/} keys %HTML),
-                (map {lcfirst, $_} @Xul),
-                (map {$_, $_} grep {not /\W/} @EXPORT_OK),
-            );
-            for my $sub (keys %methods) {
-                *{$pkg.$sub} = sub {shift; goto &{"XUL::Gui::$methods{$sub}"}}
-            }
-            *{$pkg.'ID'} = *{$pkg.'id'} =
-                sub :lvalue {$XUL::Gui::ID{$_[1]}}
-        }
-        bless {} => 'XUL::Gui::OO'
-    }
-
-
-=back
-
-=head2 constants
-
-    FLEX    flex => 1
-    FILL    flex => 1, align =>'stretch'
-    FIT     sizeToContent => 1
-    SCROLL  style => 'overflow: auto'
-    MIDDLE  align => 'center', pack => 'center'
-
-    each is a function that returns its constant, prepended to
-    its arguments, thus the following are both valid:
-
-    Box FILL pack=>'end';
-    Box FILL, pack=>'end';
-
-=cut
-
-sub FLEX   {flex  => 1,                   @_}
-sub FILL   {align => 'stretch', FLEX,     @_}
-sub FIT    {sizeToContent => 1,           @_}
-sub SCROLL {style => 'overflow: auto',    @_}
-sub MIDDLE {qw/align center pack center/, @_}
-
-=head2 gui functions
-
-=over 8
-
-=item C<display LIST>
-
-starts the http server, launches firefox, waits for events
-
-takes a list of gui objects, and several optional parameters:
-
-    debug     (0) .. 3   adjust verbosity to stderr
-    silent    (0) 1      disables all status messages
-    nolaunch  (0) 1      disables launching firefox, connect manually to http://localhost:8888
-    nochrome  (0) 1      chrome mode disables all normal firefox gui elements, setting this
-                         option will turn those elements back on.
-    port      (8888)     first port to try starting the server on, port++ after that
-    delay  milliseconds  delays each gui update cycle
-
-if the first object is a C<Window>, that window is created, otherwise a default
-one is added. the remaining objects are then added to the window.
-
-C<display> will not return until the the gui quits
-
-see SYNOPSYS and XUL::Gui::Manual for more details
-
-=cut
-    sub display {$server->start( &parse )}
-
-    sub dialog {croak 'dialog not implemented yet'}
-
-=item C<quit>
-
-shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
-
-=cut
-    sub quit {
-        gui('quit();') unless @_;
-        $$server{run} = 0;
-    }
-
-=item C<serve PATH MIMETYPE DATA>
-
-add a virtual file to the server
-
-    serve '/myfile.jpg', 'text/jpeg', $jpegdata;
-
-the paths C<qw( / /client.js /event /ping /exit /perl )> are reserved
-
-=cut
-    sub serve {$server->serve(@_)}
-
-=item C<object TAGNAME LIST>
-
-creates a gui proxy object, allows run time addition of custom tags
-
-    object('Label', value=>'hello') is the same as Label( value=>'hello' )
-
-=cut
-    sub object {
-        my $tag = lc shift;
-        unshift @_, @{ $defaults{$tag} } if $defaults{$tag};
-        bless my $self = {
-            TAG   => $tag,
-            DIRTY => $tag,
-            &parse
-        } => 'XUL::Gui::Object';
-        $$self{ID} = $$self{A}{id} ||= genid;
-        $tag ? $ID{ $$self{ID} } = $self
-             : $self;
-    }
-
-=item C<tag NAME>
-
-returns a code ref that generates proxy objects, allows for user defined tag functions
-
-    *mylabel = tag 'label';
-
-    \&mylabel == \&Label
-
-=cut
-    sub tag {
-        my @args = @_;
-        sub {
-            object @args,
-                (@_ == 1 and not isa 'XUL::Gui::Object' => $_[0])
-                    ? 'TEXT' : (),
-                @_
-        }
-    }
-
-    no strict 'refs';
-
-    *$_ = tag $_        for @Xul;       # dr tagfunction,
-    *$_ = tag $HTML{$_} for keys %HTML; # or how i learned to fail pod-coverage.t and love no strict
-
-
-=item C<widget {CODE} HASH>
-
-group tags together into common patterns, with methods and inheritance
-
-    *MyWidget = widget {
-        Hbox(
-            Label( value=> $A{label} ),
-            Button( label=>'OK', attribute 'oncommand' ),
-            @C
-        )
-    }   method  => sub{ ... },
-        method2 => sub{ ... };
-
-    $ID{someobject}->appendChild( MyWidget( label=>'widget', oncommand=>\&event_handler ) );
-
-    inside widgets, several variables are defined
-    variable    contains the passed in
-       %A           attributes
-       @C           children
-       %M           methods
-       $W           a reference to the current widget
-
-    much more detail in XUL::Gui::Manual
-
-=cut
-    sub widget (&%) {
-        my ($code, %methods, $sub) = @_;
-        $sub = sub {
-            my %data;
-            while (my ($k, $v) = each %methods)
-                {$data{$k} = dclone $v if ref $v ne 'CODE'}
-
-            my $subwidget = defined %_ID;
-            local *_ID = \%ID unless $subwidget;
-
-            my %arg = parse @_;
-            my $wid = $subwidget ? genid : $arg{A}{id} || genid;
-            @arg{qw/M T ID/} = ({ %methods, %{ $arg{M} } }, $sub, $wid);
-
-            my ($C, $A, $M, $W, $cID) = map {(caller)."::$_"} qw/C A M W ID/;
-            local (*$C, *$A, *$M)     = @arg{qw/C A M/};
-            local $$W = $_ID{$wid}    = bless {%data, %arg} => 'XUL::Gui::Object';
-            $ID{$$A{id} || genid }    = $_ID{$wid} if $subwidget;
-
-            local %ID;
-            local *$cID = \%ID;
-            $_ID{$wid}{WIDGET} = [ &$code ]; # NOT FINAL
-
-            for my $k (keys %data) { $$M{$k} = sub : lvalue {$data{$k}} }
-            $_ID{$wid}{M} = { %methods, %$M };
-
-            for my $i (keys %ID) { # refactor to reduce copying
-                $_ID{$wid}{$i} = $_ID{ my $gid = genid } = $ID{$i};
-                next unless isa 'XUL::Gui::Object' => $ID{$i};
-                $ID{$i}{N}    = $ID{$i}{A}{id};
-                $ID{$i}{ID}   = $ID{$i}{A}{id} = $gid;
-                $ID{$i}{W}    = $_ID{$wid};
-                $ID{$i}{$_} ||= $ID{$_} for keys %ID;
-                $ID{$i}{$_} ||= $$A{$_} for keys %$A;
-            }
-            wantarray ? @{ $_ID{$wid}{WIDGET} } : $_ID{$wid}{WIDGET}[0];
-        }
-    }
-
-=item C<extends OBJECT>
-
-indicate that a widget inherits from another widget or tag
-
-    *MySubWidget = widget {extends MyWidget}
-        submethod => sub{...};
-
-    more details in XUL::Gui::Manual
-
-=cut
-    sub extends {
-        croak 'extends only works inside widgets' unless defined %_ID;
-        $ID{$_} = $_[0]{W}{$_} for grep {/[a-z]/} keys %{ $_[0]{W} };
-        %{ (caller).'::M' } = %{ $_[0]{W}{M} };
-        @_
-    }
-
-=item C<attribute NAME>
-
-includes an attribute name if it exists, only works inside of widgets.
-NAME is split on whitespace
-
-    attribute 'label type' # is syntactic sugar for
-    map {$_ => $A{$_}} grep {exists $A{$_}} qw/label type/
-
-    attribute '+' # same as %A
-    attribute '*' # any untouched attributes (by attribute)
-
-=cut
-    sub attribute ($) {
-        croak 'attribute only works inside widgets' unless defined %_ID;
-        my ($A, $W, @ret) = ((caller).'::A', (caller).'::W');
-        my @keys = grep {
-            $_ eq '*' ? do {push @ret, %$A; 0} :
-            $_ eq '+' ? do {push @ret, map {$_ => $$A{$_}}
-                grep {not $$W{SEEN}{$_}} keys %$A; 0
-            } : 1
-        } split /\s+/ => shift;
-        $$W{SEEN}{$_}++ for @keys;
-        map {$_ => $$A{$_}} grep {exists $$A{$_}} @keys
-    }
-
-
-=item C<XUL STRING>
-
-converts an XML XUL string to XUL::Gui objects.  experimental.
-
-this function is provided to facilitate drag and drop of XML based XUL from tutorials for testing.
-the perl functional syntax for tags should be used in all other cases
-
-=cut
-    {my %xul; @xul{map lc, @Xul} = @Xul;
-    sub XUL {
-        for ("@_") {
-            s {<(\w+)(.+?)}       "$xul{lc $1}($2"g;
-            s {/>}                '),'g;
-            s {</\w+>}            '),'g;
-            s {>}                 ''g;
-            s {(\w+)\s*=\s*(\S+)} "'$1'=>$2"g;
-            s <([^\\](}|"|'))\s+> "$1,"g;
-            return eval 'package '.caller().";$_"
-                or carp "content skipped due to parse failure: $@\n\n$_";
-        }
-    }}
-
-=item C<alert STRING>
-
-open an alert message box
-
-=cut
-    sub alert {
-        gui( "alert('\Q@_\E');" );
-        wantarray ? @_ : pop
-    }
-
-=item C<trace LIST>
-
-carps LIST with object details, and then returns LIST unchanged
-
-=cut
-    sub trace {
-        my $caller = caller;
-        carp 'trace: ', join ', ' => map {
-            (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
-        } @_;
-        wantarray ? @_ : pop
-    }
-
-    {my %cache;
-    sub lookup {
-        my $self = shift;
-        return $cache{$self} if $cache{$self};
-        return $$self{ID} unless $$self{W} || $$self{T};
-        no warnings;
-        our %space;
-        local *space = \%{"$_[0]\::"};
-        for (keys %space) {
-            eval {*{$space{$_}}{CODE}} == ($$self{T} || $$self{W}{T})
-                and return $cache{$self} = $_ .
-                    ($$self{T}
-                        ? '{'
-                        : '{'.($$self{W}{A}{id} || $$self{W}{ID}).'}->{'
-                    ).($$self{N} || $$self{ID}).'}'
-        }
-        $$self{ID}
-    }}
-
-    use strict 'refs';
-
-    sub calltrace {
-        my $self = $_[0];
-        my $caller = caller 1;
-        our $AUTOLOAD =~ /([^:]+)$/;
-        lookup($self, $caller) . "->$1(" .
-            (join ',' => map {
-                (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
-            } @_[1..$#_]) . ")\n";
-    }
-
-
-=item C<function JAVASCRIPT>
-
-create a javascript function, useful for functions that need to be very fast, such as rollovers
-
-    Button( label=>'click me', oncommand=> function q{
-        this.label = 'ouch';
-        alert('hello from javascript');
-    })
-
-    to access widget siblings by id, wrap the id with C< W{...} >
-
-=cut
-    sub function ($) {
-        my $js = shift;
-        bless [ sub {
-            my $self = shift;
-            my $func = 'ID.' . genid;
-            delay( sub {
-                $js =~ s[\$?W{\s*(\w+)\s*}] [ID.$$self{W}{$1}{ID}]g;
-                gui( "$func = function (event) {
-                    (function(){ $js }).call( ID.$$self{ID} )
-                }" )
-            });
-            "$func(event)"
-        } ] => 'XUL::Gui::Function'
-    }
-
-=item C<gui JAVASCRIPT>
-
-executes JAVASCRIPT
-
-=back
-
-=cut
-
-    {my ($buffered, @buffer, $cached, %cache, $now);
-        sub gui :lvalue {
-            push @_, "\n";
-            unless ($now) {
-                push @buffer, @_ and return if $buffered;
-                return $cache{$_[0]} if exists $cache{$_[0]}
-            }
-            $server->write('text/plain', "@_");
-            my $res = $server->safe_read->{CONTENT};
-            croak "invalid response: $res" unless $res =~ /^(...) (.*)/;
-
-            $res = $1 eq 'OBJ' ?
-                ($ID{$2} || object undef, id=>$2) : $2;
-            $cache{$_[0]} = $res if $cached and $_[0] =~ /^(GET|0)/;
-            $res
-        }
-
-=head1 PRAGMATIC BLOCKS
-
-the following functions all apply pragmas to their CODE blocks.
-in some cases, they also take a list. this list will be C<@_> when
-the CODE block executes.  this is useful for sending in values
-from the gui, if you don't want to use a C<now {block}>
-
-=over 8
-
-=item C<buffered {CODE} LIST>
-
-delays sending gui updates
-
-    buffered {
-        $ID{$_}->value = '' for qw/a bunch of labels/
-    }; # all labels are cleared at once
-
-=cut
-        sub buffered (&@) {
-            $buffered++;
-            &{+shift};
-            gui(@buffer),
-                @buffer = () unless --$buffered;
-        }
-
-=item C<cached {CODE}>
-
-turns on caching of gets from the gui
-
-=cut
-        sub cashed (&) {
-            $cached++;
-            my $ret = shift->();
-            %cache = () unless --$cached;
-            $ret;
-        }
-
-=item C<now {CODE}>
-
-execute immediately, from inside a buffered or cached block
-
-=cut
-        sub now (&) {
-            $now++;
-            my @ret = shift->();
-            $now--;
-            wantarray ? @ret : $ret[0];
-        }
-    }
-
-=item C<delay {CODE} LIST>
-
-delays executing its CODE until the next gui refresh
-
-useful for triggering widget initialization code that needs to
-run after the gui objects are rendered
-
-=cut
-    sub delay (&@) {
-        my $code = shift;
-        my @args = @_;
-        push @{$$server{queue}}, sub{ $code->(@args) };
-        return;
-    }
-
-=item C<noevents {CODE} LIST>
-
-disable event handling
-
-=cut
-    sub noevents (&@) {
-        gui('cacheEvents = false;');
-        my @ret = &{+shift};
-        gui('cacheEvents = true;');
-        @ret;
-    }
-
-=item C<doevents>
-
-force a gui update before an event handler finishes
-
-=back
-
-=cut
-    sub doevents () {
-        $server->write('text/plain', 'NOOP');
-        $server->read; # should be safe_read
-        return;
-    }
 
 =head1 METHODS
 
@@ -936,7 +957,8 @@ package
                         ($$_{W} ? $$_{W}{W} : $$_{W}) ||= $$self{W};
                         $$_{P} ||= $self;
                         $js .= $_->toJS;
-                    } "ID.$_->{ID}" }  or  "'\Q$_\E'"
+                    } "ID.$_->{ID}" }
+                    or  "'" . XUL::Gui::escape($_) . "'"
                 } @_;
             return XUL::Gui::gui($js . "ID.$self->{ID}.$AL($arg);")
         }
@@ -969,7 +991,7 @@ package
         push @xul, qq{$_="$self->{A}{$_}" } for keys %{$self->{A}};
         if (@{$$self{C}}) {
             push @xul, ">\n";
-            push @xul, "\t" x ($tab+1),  $_->toXUL($tab+1) for @{$$self{C}};
+            push @xul, "\t" x ($tab+1), $_->toXUL($tab+1) for @{$$self{C}};
             push @xul, "\t" x $tab, "</$self->{TAG}>\n";
         } else {
             push @xul, "/>\n"
@@ -992,11 +1014,10 @@ package
                 ? qq{('$$self{TAG}');}
                 : qq{NS('http://www.w3.org/1999/xhtml', '$$self{TAG}');});
         for (keys %{$$self{A}}) {
-            my $val = quotemeta(
+            my $val = XUL::Gui::escape
                 ref $$self{A}{$_} eq 'XUL::Gui::Function'
                     ? $$self{A}{$_}[0]( $self )
-                    : $$self{A}{$_}
-            );
+                    : $$self{A}{$_};
             if (/^TEXT$/) {
                 push @js, qq{$id.appendChild( document.createTextNode('$val') );};
                 next
@@ -1132,9 +1153,10 @@ package
                 $new = $new ? do {$$self{uc $AL} = $new; 'EVT(event)'} : '';
             }
         }
+        $new = XUL::Gui::escape $new;
         XUL::Gui::gui $AL =~ /^_(.+)/
-            ? "1;ID.$self->{ID}\['$1'] = '\Q$new\E';"
-            : "SET(ID.$self->{ID}, '$AL', '\Q$new\E');"
+            ? "1;ID.$self->{ID}\['$1'] = '$new';"
+            : "SET(ID.$self->{ID}, '$AL', '$new');"
     }
 
 
@@ -1155,7 +1177,6 @@ package
     sub message {print STDERR "XUL::Gui> @_\n" unless $silent}
 
     sub start {
-        no strict;
         my $self    = shift || init;
         my %args    = @_;
         my @content = @{ $args{C} };
@@ -1187,7 +1208,7 @@ package
         $$self{dispatch} = {
             exists $$self{dispatch} ? %{$$self{dispatch}} : (),
             '/' => sub {
-                my $res = qq{<?xml version="1.0"?>\n<?xml-stylesheet }.
+                my $res = qq{<?xml version="1.0" encoding="UTF-8"?>\n<?xml-stylesheet }.
                           qq{href="chrome://global/skin" type="text/css"?>\n};
 
                 $root = $content[0]->{TAG} eq 'window'
@@ -1231,7 +1252,7 @@ package
             '/exit' => sub {
                 $$self{run} = 0;
                 no warnings;
-                local @CARP_NOT = qw/XUL::Gui XUL::Gui::Server XUL::Gui::Object/;
+                local our @CARP_NOT = qw/XUL::Gui XUL::Gui::Server XUL::Gui::Object/;
                 local *XUL::Gui::gui = sub {croak 'gui not available'};
                 use warnings;
                 ref eq 'CODE' and $_->() for $$self{onunload};
@@ -1239,6 +1260,7 @@ package
         };
         unless ($params{nolaunch}) {
             if ($^O =~ /darwin/) {
+                message 'launching firefox';
                 system qq[osascript -e 'tell application "Firefox" to OpenURL "http://localhost:$port"']
             } else {
                 my @firefox;
@@ -1648,5 +1670,5 @@ by the Free Software Foundation; or the Artistic License.
 see http://dev.perl.org/licenses/ for more information.
 
 =cut
-
-1; # End of XUL::Gui
+no warnings;
+'XUL::Gui';
