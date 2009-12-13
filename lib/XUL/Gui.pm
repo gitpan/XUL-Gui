@@ -7,7 +7,7 @@ package XUL::Gui;
     use List::Util 'max';
     use MIME::Base64 'encode_base64';
     use Encode 'encode';
-    our $VERSION = '0.35';
+    our $VERSION = '0.36';
     our $DEBUG = 0;
 
 =head1 NAME
@@ -16,7 +16,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.35
+version 0.36
 
 this module is under active development, interfaces may change.
 
@@ -1196,12 +1196,10 @@ package
             Proto     => 'tcp',
             PeerAddr  => 'localhost',
             LocalAddr => "localhost:$port",
-            ReuseAddr => 1,
             Listen    => 1,
-            Reuse     => 1,
         );
 
-        $| = 1;
+        local $| = 1;
         message "server started: http://localhost:$port";
 
         my $root;
