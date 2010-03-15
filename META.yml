@@ -1,23 +1,35 @@
 ---
-name: XUL-Gui
-version: 0.36
+abstract: 'render cross platform gui applications with firefox from perl'
 author:
-  - 'Eric Strom <ejstrom@gmail.com>'
-abstract: display cross platform gui apps with firefox
-license: perl
-resources:
-  license: http://dev.perl.org/licenses/
+  - 'Eric Strom <asg@cpan.org>'
 build_requires:
   Test::More: 0
 configure_requires:
-  Module::Build: 0.34
-provides:
-  XUL::Gui:
-    file: lib/XUL/Gui.pm
-    version: 0.36
-  XUL::Gui::Manual:
-    file: lib/XUL/Gui/Manual.pm
-generated_by: Module::Build version 0.34
+  Module::Build: 0.36
+dynamic_config: 0
+generated_by: 'Module::Build version 0.3603'
+license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
+name: XUL-Gui
+provides:
+  XUL::Gui:
+    file: lib/XUL/Gui.pm
+    version: 0.40
+  XUL::Gui::Manual:
+    file: lib/XUL/Gui/Manual.pm
+  XUL::Gui::Tutorial:
+    file: lib/XUL/Gui/Tutorial.pm
+requires:
+  Carp: 0
+  Encode: 0
+  File::Find: 0
+  IO::Socket: 0
+  List::Util: 0
+  MIME::Base64: 0
+  Storable: 0
+  Time::HiRes: 0
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.40

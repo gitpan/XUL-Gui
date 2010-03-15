@@ -1,14 +1,25 @@
 package XUL::Gui;
-    use strict;
     use warnings;
+    use strict;
     use Carp;
-    use Exporter 'import';
-    use Storable 'dclone';
-    use List::Util 'max';
+    use Storable     'dclone';
+    use List::Util   'max';
     use MIME::Base64 'encode_base64';
-    use Encode 'encode';
-    our $VERSION = '0.36';
-    our $DEBUG = 0;
+    use Encode       'encode';
+    our $VERSION  =  '0.40';
+    our $DEBUG    =   0;
+
+    $Carp::Internal{"XUL::Gui$_"}++
+        for '', qw(::Object ::Server);
+
+    sub import {
+        require Exporter and
+         goto & Exporter::import if @_ == 1
+             or 1 < (@_ = grep {
+                not /^([\w:]*)->\*?([\w:]*)$/
+                && XUL::Gui->oo( $2 or $1 )} @_)
+    }
+
 
 =head1 NAME
 
@@ -16,13 +27,11 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.36
+version 0.40
 
 this module is under active development, interfaces may change.
 
 this code is currently in beta, use in production environments at your own risk
-
-the code will be considered production ready, and interfaces finalized at version 0.50
 
 this documentation is a work in progress
 
@@ -37,7 +46,7 @@ this documentation is a work in progress
     display Window title => "XUL::Gui's long hello", minwidth=>300,
         GroupBox(
             Caption('XUL'),
-            Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'} ),
+            Button( label=>'click me', oncommand=> sub {shift->label = 'ouch'}),
             Button( id=>'btn',
                 label=>'automatic id registration',
                 oncommand=>sub{
@@ -52,7 +61,9 @@ this documentation is a work in progress
         ),
         GroupBox(
             Caption('HTML too'),
-            TABLE( border=>1, TR map {TD $_} 'one', I('two'), B('three'), U('four'), SUP('five') ),
+            TABLE( border=>1, TR map {TD $_}
+                'one', I('two'), B('three'), U('four'), SUP('five')
+            ),
             HR,
             P('all the HTML tags are in CAPS'),
         );
@@ -61,17 +72,18 @@ this documentation is a work in progress
 
 this module exposes the entire functionality of mozilla firefox's rendering
 engine to perl by providing all of the XUL and HTML tags as functions and
-allowing you to interact with those objects directly from perl.  gui applications
+allowing you to interact with those objects directly from perl. gui applications
 created with this toolkit are cross platform, fully support CSS styling, inherit
-firefox's rich assortment of web technologies (browser, canvas and video tags, flash
-and other plugins), and are even easier to write than HTML.
+firefox's rich assortment of web technologies (browser, canvas and video tags,
+flash and other plugins), and are even easier to write than HTML.
 
-this module is written in pure perl, and only depends upon core modules, making it
-easy to distribute your application.
+this module is written in pure perl, and only depends upon core modules, making
+it easy to distribute your application.
 
-all XUL and HTML objects in perl are exact mirrors of their javascript counterparts and can
-be acted on as such.  for anything not written in this document or XUL::Gui::Manual,
-developer.mozilla.com is the official source of documentation:
+all XUL and HTML objects in perl are exact mirrors of their javascript
+counterparts and can be acted on as such. for anything not written in this
+document or XUL::Gui::Manual, developer.mozilla.com is the official source of
+documentation:
 
 =over
 
@@ -83,26 +95,28 @@ developer.mozilla.com is the official source of documentation:
 
 =back
 
-gui's created with this module are event driven.  an arbitrarily complex (and runtime mutable)
-object tree is passed to C<display>, which then creates the gui in firefox and starts the
-event loop.  C<display> will wait for and respond to events until the C<quit> function is
-called, or the user closes the firefox window.
+gui's created with this module are event driven. an arbitrarily complex (and
+runtime mutable) object tree is passed to C<display>, which then creates the gui
+in firefox and starts the event loop. C<display> will wait for and respond to
+events until the C<quit> function is called, or the user closes the window.
 
-all of javascript's event handlers are available, and can be written in perl (normally)
-or javascript (for handlers that need to be very fast such as image rollovers with
-onmouseover or the like).  this is not to say that perl side handlers are slow, but with
-rollovers and fast mouse movements, sometimes there is mild lag due to protocol overhead.
+all of javascript's event handlers are available, and can be written in perl
+(normally) or javascript (for handlers that need to be very fast such as image
+rollovers with onmouseover or the like). this is not to say that perl side
+handlers are slow, but with rollovers and fast mouse movements, sometimes there
+is mild lag due to protocol overhead.
 
-the goal of this module is to make gui development as easy as possible. XUL's widgets and
-nested design structure gets us most of the way there, and this module with its light weight
-syntax, and "Do What I Mean" nature hopefully finishes the job.  everything has sensible
-defaults with minimal boilerplate, and nested design means a logical code flow that isn't
-littered with variables.  please send feedback if you think anything could be improved.
+the goal of this module is to make gui development as easy as possible. XUL's
+widgets and nested design structure gets us most of the way there, and this
+module with its light weight syntax, and "Do What I Mean" nature hopefully
+finishes the job. everything has sensible defaults with minimal boilerplate,
+and nested design means a logical code flow that isn't littered with variables.
+please send feedback if you think anything could be improved.
 
 =head2 tags
 
-all tags (C<XUL>, C<HTML>, user defined widgets, and the C<display> function) are parsed
-the same way, and can fit into one of four templates
+all tags (C<XUL>, C<HTML>, user defined widgets, and the C<display> function)
+are parsed the same way, and can fit into one of four templates
 
 =over 8
 
@@ -110,16 +124,17 @@ the same way, and can fit into one of four templates
 
 =item * C<< B('some bold text') is <b>some bold text<b/> >>
 
-in the special case of a tag with one argument, which is not another tag, that argument is
-added to that tag as a text node. this is mostly useful for HTML tags, but works with XUL as well
+in the special case of a tag with one argument, which is not another tag, that
+argument is added to that tag as a text node. this is mostly useful for HTML
+tags, but works with XUL as well
 
 =item * C<< Label( value=>'some text', style=>'color: red' ) >>
 
     <label value="some text" style="color: red;" />
 
-=item * C<< Hbox( id=>'mybox', Label('hello'), B('world'), style=>'border: 1px solid black') >>
+=item * C<< Hbox( id=>'mybox', Label('hello'), B('world'), pack=>'center' ) >>
 
-    <hbox id="mybox" style="border: 1px solid black;">
+    <hbox id="mybox" pack="center">
         <label>hello</label>
         <b>world</b>
     </hbox>
@@ -129,22 +144,27 @@ but attributes should probably be kept at the front for readability
 
 =back
 
-setting the 'id' attribute names the object in the global C<%ID> hash.
-otherwise an auto generated name matching C</^xul_\d+$/> is used.
+setting the 'id' attribute names the object in the global C<%ID> hash. otherwise
+an auto generated name matching C</^xul_\d+$/> is used.
 
     $object = Button( id=>'btn', label=>'OK' );
 
     #  $ID{btn} == $object
 
-any tag attribute name that matches C</^on/> is an event handler (onclick, onfocus....), and
-expects a C<sub{...}> (perl event handler) or C<function q{...}> (javascript event handler).
+any tag attribute name that matches C</^on/> is an event handler (onclick,
+onfocus...), and expects a C<sub{...}> (perl event handler) or
+C<function q{...}> (javascript event handler).
 
-perl event handlers get passed a reference to themselves, and an event object
+perl event handlers get passed a reference to their object, and an event object
 
     Button( label=>'click me', oncommand=> sub {
         my ($self, $event) = @_;
         $self->label = $event->type;
     })
+
+in the event handler, C<$_ == $_[0]> so a shorter version would be:
+
+    oncommand => sub {$_->label = pop->type}
 
 javascript event handlers have C<event> and C<this> set for you
 
@@ -152,8 +172,8 @@ javascript event handlers have C<event> and C<this> set for you
         this.label = event.type;
     })
 
-any attribute with a name that doesn't match /^on/ that has a code ref value is added
-to the object as a method
+any attribute with a name that doesn't match /^on/ that has a code ref value is
+added to the object as a method
 
 Tk's attribute style with a leading dash is supported.
 this is useful for readability when collapsing attribute lists with C<qw//>
@@ -166,43 +186,50 @@ multiple 'style' attributes are joined with ';' into a single attribute
 =head1 EXPORT
 
     use XUL::Gui;   # is the same as
-    use XUL::Gui qw/:base :util :widget :pragma :xul :html :const :image/;
+    use XUL::Gui qw/:base :util :pragma :xul :html :const :image/;
 
     the following export tags are available:
 
-    :base       %ID display quit alert function gui XUL
-    :widget     @C %A %M $W widget attribute extends
-    :pragma     buffered now cached noevents delay doevents
-    :const      FLEX FIT FILL SCROLL MIDDLE
-    :image      bitmap bitmap2src serve
-    :util       zip mapn apply trace toggle
-    :internal   tag object genid
+    :base       %ID alert display quit widget
+    :tools      function gui interval serve timeout toggle XUL
+    :pragma     buffered cached delay doevents noevents now
+    :const      BLUR FILL FIT FLEX MIDDLE SCROLL
+    :widgets    filepicker
+    :image      bitmap bitmap2src
+    :util       apply mapn trace zip
+    :internal   genid object realid tag
 
-    :all    (all exports)
+    :all     (all exports)
+    :default (same as with 'use XUL::Gui;')
 
     :xul    (also exported as Titlecase)
-        Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet
-        Browser Button Caption CheckBox ColorPicker Column Columns Command CommandSet Conditions
-        Content DatePicker Deck Description Dialog DialogHeader DropMarker Editor Grid Grippy
-        GroupBox HBox IFrame Image Key KeySet Label ListBox ListCell ListCol ListCols ListHead
-        ListHeader ListItem Member Menu MenuBar MenuItem MenuList MenuPopup MenuSeparator
-        Notification NotificationBox Observes Overlay Page Panel Param PopupSet PrefPane PrefWindow
-        Preference Preferences ProgressMeter Query QuerySet Radio RadioGroup Resizer RichListBox
-        RichListItem Row Rows Rule Scale Script ScrollBar ScrollBox ScrollCorner Separator Spacer
-        SpinButtons Splitter Stack StatusBar StatusBarPanel StringBundle StringBundleSet Tab TabBox
-        TabPanel TabPanels Tabs Template TextBox TextNode TimePicker TitleBar ToolBar ToolBarButton
-        ToolBarGrippy ToolBarItem ToolBarPalette ToolBarSeparator ToolBarSet ToolBarSpacer
-        ToolBarSpring ToolBox ToolTip Tree TreeCell TreeChildren TreeCol TreeCols TreeItem TreeRow
-        TreeSeparator Triple VBox Where Window Wizard WizardPage
+      Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster
+      BroadcasterSet Browser Button Caption CheckBox ColorPicker Column Columns
+      Command CommandSet Conditions Content DatePicker Deck Description Dialog
+      DialogHeader DropMarker Editor Grid Grippy GroupBox HBox IFrame Image Key
+      KeySet Label ListBox ListCell ListCol ListCols ListHead ListHeader
+      ListItem Member Menu MenuBar MenuItem MenuList MenuPopup MenuSeparator
+      Notification NotificationBox Observes Overlay Page Panel Param PopupSet
+      PrefPane PrefWindow Preference Preferences ProgressMeter Query QuerySet
+      Radio RadioGroup Resizer RichListBox RichListItem Row Rows Rule Scale
+      Script ScrollBar ScrollBox ScrollCorner Separator Spacer SpinButtons
+      Splitter Stack StatusBar StatusBarPanel StringBundle StringBundleSet Tab
+      TabBox TabPanel TabPanels Tabs Template TextBox TextNode TimePicker
+      TitleBar ToolBar ToolBarButton ToolBarGrippy ToolBarItem ToolBarPalette
+      ToolBarSeparator ToolBarSet ToolBarSpacer ToolBarSpring ToolBox ToolTip
+      Tree TreeCell TreeChildren TreeCol TreeCols TreeItem TreeRow TreeSeparator
+      Triple VBox Where Window Wizard WizardPage
 
     :html   (also exported as html_lowercase)
-        A ABBR ACRONYM ADDRESS APPLET AREA AUDIO B BASE BASEFONT BDO BGSOUND BIG BLINK BLOCKQUOTE
-        BODY BR BUTTON CANVAS CAPTION CENTER CITE CODE COL COLGROUP COMMENT DD DEL DFN DIR DIV DL DT
-        EM EMBED FIELDSET FONT FORM FRAME FRAMESET H1 H2 H3 H4 H5 H6 HEAD HR HTML I IFRAME ILAYER IMG
-        INPUT INS ISINDEX KBD LABEL LAYER LEGEND LI LINK LISTING MAP MARQUEE MENU META MULTICOL NOBR
-        NOEMBED NOFRAMES NOLAYER NOSCRIPT OBJECT OL OPTGROUP OPTION P PARAM PLAINTEXT PRE Q RB RBC RP
-        RT RTC RUBY S SAMP SCRIPT SELECT SMALL SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE
-        TBODY TD TEXTAREA TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
+      A ABBR ACRONYM ADDRESS APPLET AREA AUDIO B BASE BASEFONT BDO BGSOUND BIG
+      BLINK BLOCKQUOTE BODY BR BUTTON CANVAS CAPTION CENTER CITE CODE COL
+      COLGROUP COMMENT DD DEL DFN DIR DIV DL DT EM EMBED FIELDSET FONT FORM
+      FRAME FRAMESET H1 H2 H3 H4 H5 H6 HEAD HR HTML I IFRAME ILAYER IMG INPUT
+      INS ISINDEX KBD LABEL LAYER LEGEND LI LINK LISTING MAP MARQUEE MENU META
+      MULTICOL NOBR NOEMBED NOFRAMES NOLAYER NOSCRIPT OBJECT OL OPTGROUP OPTION
+      P PARAM PLAINTEXT PRE Q RB RBC RP RT RTC RUBY S SAMP SCRIPT SELECT SMALL
+      SOURCE SPACER SPAN STRIKE STRONG STYLE SUB SUP TABLE TBODY TD TEXTAREA
+      TFOOT TH THEAD TITLE TR TT U UL VAR VIDEO WBR XML XMP
 
 constants:
 
@@ -211,9 +238,10 @@ constants:
     FIT     sizeToContent => 1
     SCROLL  style => 'overflow: auto'
     MIDDLE  align => 'center', pack => 'center'
+    BLUR    onfocus => 'this.blur()'
 
-    each is a function that returns its constant, prepended to
-    its arguments, thus the following are both valid:
+    each is a function that returns its constant, prepended to its arguments,
+    thus the following are both valid:
 
     Box FILL pack=>'end';
     Box FILL, pack=>'end';
@@ -221,50 +249,65 @@ constants:
 =cut
 
     sub FLEX   {flex  => 1,                   @_}
-    sub FILL   {align => 'stretch', FLEX,     @_}
+    sub FILL   {qw/flex 1 align stretch/,     @_}
     sub FIT    {sizeToContent => 1,           @_}
     sub SCROLL {style => 'overflow: auto',    @_}
     sub MIDDLE {qw/align center pack center/, @_}
+    sub BLUR   {qw/onfocus this.blur()/,      @_}
 
-    our @Xul = map {$_, (ucfirst lc) x /.[A-Z]/}
-        qw/Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster BroadcasterSet
-        Browser Button Caption CheckBox ColorPicker Column Columns Command CommandSet Conditions
-        Content DatePicker Deck Description Dialog DialogHeader DropMarker Editor Grid Grippy
-        GroupBox HBox IFrame Image Key KeySet Label ListBox ListCell ListCol ListCols ListHead
-        ListHeader ListItem Member Menu MenuBar MenuItem MenuList MenuPopup MenuSeparator
-        Notification NotificationBox Observes Overlay Page Panel Param PopupSet PrefPane PrefWindow
-        Preference Preferences ProgressMeter Query QuerySet Radio RadioGroup Resizer RichListBox
-        RichListItem Row Rows Rule Scale Script ScrollBar ScrollBox ScrollCorner Separator Spacer
-        SpinButtons Splitter Stack StatusBar StatusBarPanel StringBundle StringBundleSet Tab TabBox
-        TabPanel TabPanels Tabs Template TextBox TextNode TimePicker TitleBar ToolBar ToolBarButton
-        ToolBarGrippy ToolBarItem ToolBarPalette ToolBarSeparator ToolBarSet ToolBarSpacer
-        ToolBarSpring ToolBox ToolTip Tree TreeCell TreeChildren TreeCol TreeCols TreeItem TreeRow
-        TreeSeparator Triple VBox Where Window Wizard WizardPage/;
-
-    our %HTML = map {("html_$_" => "html:$_", uc $_ => "html:$_")}
-        qw/a abbr acronym address applet area audio b base basefont bdo bgsound big blink blockquote
-        body br button canvas caption center cite code col colgroup comment dd del dfn dir div dl dt
-        em embed fieldset font form frame frameset h1 h2 h3 h4 h5 h6 head hr html i iframe ilayer img
-        input ins isindex kbd label layer legend li link listing map marquee menu meta multicol nobr
-        noembed noframes nolayer noscript object ol optgroup option p param plaintext pre q rb rbc rp
-        rt rtc ruby s samp script select small source spacer span strike strong style sub sup table
-        tbody td textarea tfoot th thead title tr tt u ul var video wbr xml xmp/;
-
+    our @Xul = map {$_, (ucfirst lc) x /.[A-Z]/} qw {
+        Action ArrowScrollBox Assign BBox Binding Bindings Box Broadcaster
+        BroadcasterSet Browser Button Caption CheckBox ColorPicker Column
+        Columns Command CommandSet Conditions Content DatePicker Deck
+        Description Dialog DialogHeader DropMarker Editor Grid Grippy GroupBox
+        HBox IFrame Image Key KeySet Label ListBox ListCell ListCol ListCols
+        ListHead ListHeader ListItem Member Menu MenuBar MenuItem MenuList
+        MenuPopup MenuSeparator Notification NotificationBox Observes Overlay
+        Page Panel Param PopupSet PrefPane PrefWindow Preference Preferences
+        ProgressMeter Query QuerySet Radio RadioGroup Resizer RichListBox
+        RichListItem Row Rows Rule Scale Script ScrollBar ScrollBox ScrollCorner
+        Separator Spacer SpinButtons Splitter Stack StatusBar StatusBarPanel
+        StringBundle StringBundleSet Tab TabBox TabPanel TabPanels Tabs Template
+        TextBox TextNode TimePicker TitleBar ToolBar ToolBarButton ToolBarGrippy
+        ToolBarItem ToolBarPalette ToolBarSeparator ToolBarSet ToolBarSpacer
+        ToolBarSpring ToolBox ToolTip Tree TreeCell TreeChildren TreeCol
+        TreeCols TreeItem TreeRow TreeSeparator Triple VBox Where Window Wizard
+        WizardPage
+    };
+    our %HTML = map {("html_$_" => "html:$_", uc $_ => "html:$_")} qw {
+        a abbr acronym address applet area audio b base basefont bdo bgsound big
+        blink blockquote body br button canvas caption center cite code col
+        colgroup comment dd del dfn dir div dl dt em embed fieldset font form
+        frame frameset h1 h2 h3 h4 h5 h6 head hr html i iframe ilayer img input
+        ins isindex kbd label layer legend li link listing map marquee menu meta
+        multicol nobr noembed noframes nolayer noscript object ol optgroup
+        option p param plaintext pre q rb rbc rp rt rtc ruby s samp script
+        select small source spacer span strike strong style sub sup table tbody
+        td textarea tfoot th thead title tr tt u ul var video wbr xml xmp
+    };
     our %EXPORT_TAGS = (
-        util     => [qw/zip mapn apply trace toggle/],
-        base     => [qw/%ID display quit alert function gui XUL/],
-        widget   => [qw/@C %A %M $W widget attribute extends/],
+        util     => [qw/zip mapn apply trace/],
+        base     => [qw/%ID display quit alert widget/],
+        widgets  => [qw/filepicker/],
+        tools    => [qw/gui interval timeout toggle function serve XUL/],
         pragma   => [qw/buffered now cached noevents delay doevents/],
         xul      => [@Xul],
         html     => [keys %HTML],
-        const    => [qw/FLEX FIT FILL SCROLL MIDDLE/],
-        image    => [qw/bitmap bitmap2src serve/],
-        internal => [qw/tag object genid/],
+        const    => [qw/FLEX FIT FILL SCROLL MIDDLE BLUR/],
+        image    => [qw/bitmap bitmap2src/],
+        internal => [qw/tag object genid realid/],
     );
     our @EXPORT_OK    = map @$_ => values %EXPORT_TAGS;
-    $EXPORT_TAGS{all} = \@EXPORT_OK;
     our @EXPORT       = map @{ $EXPORT_TAGS{$_} } =>
-                            qw/util base widget pragma xul html const image/;
+                         qw/util base tools pragma xul html const image/;
+    @EXPORT_TAGS{qw/default all/} = (\@EXPORT, \@EXPORT_OK);
+
+    #for (qw/base tools pragma const widgets image util internal/) {
+    #   printf "    :%-10s %s\n", $_, join ' '=> sort {
+    #       lc $a cmp lc $b
+    #   } @{ $EXPORT_TAGS{$_} }
+    #}
+
     our %defaults = (
         window      => ['xmlns:html' => 'http://www.w3.org/1999/xhtml',
                          xmlns       => 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul' ],
@@ -272,19 +315,27 @@ constants:
         textbox     => [  value      => sub :lvalue {tie my $ret, 'XUL::Gui::Scalar', shift, '_value'; $ret},
                          _value      => sub :lvalue {tie my $ret, 'XUL::Gui::Scalar', shift,  'value'; $ret} ],
     );
-    our $server ||= XUL::Gui::Server->init;
-    our (%ID, %_ID, %dialogs);
+    our $server = XUL::Gui::Server->new;
+    our (%ID, %dialogs);
 
-    {my $id = 0;
-        sub genid () {'xul_' . $id++}
+    {*ID = my $id = {};
+        sub realid :lvalue {
+            @_ ? $id->{$_[0]} : (my $id = $id)
+        }
     }
+    {my $id; sub genid () {'xul_' . ++$id}}
 
-    sub isa {UNIVERSAL::isa( (@_, $_)[1, 0] )}
+    sub isa_object {UNIVERSAL::isa @_ ? $_[0] : $_, 'XUL::Gui::Object'}
+
+    sub mapn (&$@);
+
+    sub CLONE_SKIP {1}
 
     sub parse {
         my (@C, %A, %M);
-        while (local $_ = shift) {
-            if (isa 'XUL::Gui::Object') {push @C, $_; next}
+        local $_;
+        while ($_ = shift) {
+            if (isa_object) {push @C, $_; next}
             grep {not defined and $_ = '???'} $_, $_[0]
                 and croak "parse failure: [ $_ => $_[0] ] @_[1..$#_],";
             s/^-//;
@@ -296,52 +347,64 @@ constants:
         C => \@C, A => \%A, M => \%M
     }
 
+
 =pod
 
-if you prefer an OO interface:
+if you prefer an OO interface, there are a few ways to get one:
 
-    use XUL::Gui ();         # or anything you do want
-    my $gui = XUL::Gui->oo;  # $gui now has XUL::Gui's namespace as methods
+    use XUL::Gui 'g->*';  # DYOI: draw your own interface
 
-    $gui->display( $gui->Label('hello world') );        # is the same as
+C< g > (which could be any empty package name) now has all of XUL::Gui's
+functions as methods.  since DYOI DWYM each of the following graphic styles
+are equivalent: C<< g->*, g->, ->g, install_into->g >>.
+
+no functions are imported into your namespace by default, but you can request
+any you do want as usual:
+
+    use XUL::Gui qw( g->* :base :pragma );
+
+to use the OO interface:
+
+    g->display( g->Label('hello world') );
+    # is the same as
     XUL::Gui::display( XUL::Gui::Label('hello world') );
 
-    use $gui->id('someid') or $gui->ID('someid') to access the %ID hash
+    use g->id('someid') or g->ID('someid') to access the %ID hash
 
     the XUL tags are also available in lc and lcfirst:
-        $gui->label       == XUI::Gui::Label
-        $gui->colorpicker == XUL::Gui::ColorPicker
-        $gui->colorPicker == XUL::Gui::ColorPicker
+        g->label       == XUI::Gui::Label
+        g->colorpicker == XUL::Gui::ColorPicker
+        g->colorPicker == XUL::Gui::ColorPicker
 
-    the HTML tags are also available in lc, unless an XUL tag of the same name exists
+    the HTML tags are also available in lc, unless an XUL tag
+    of the same name exists
 
-    the oo constructor can be passed a package name to export into:
+if you prefer an object (which behaves exactly the same as the package 'g'):
 
-        XUL::Gui->oo('g');                     # dies if the package isn't empty
-        g->display( g->label('hello world') ); # only 3 strokes over par :)
+    use XUL::Gui ();        # or anything you do want
+    my $g = XUL::Gui->oo;   # $g now has XUL::Gui's functions as methods
 
 =cut
-
     {my %loaded;
     sub oo {
         no strict 'refs';
         my $pkg = ($_[1] || 'XUL::Gui::OO') . '::';
-        if (defined %$pkg) {
-            $loaded {$pkg} or croak "package '$pkg' not empty"
-        } else {
-            $loaded {$pkg} ++;
-            my %methods = (
-                (map {lc, $_} grep {not /_/} @{$EXPORT_TAGS{const}}, keys %HTML),
-                (map {lcfirst, $_} @Xul),
-                (map {$_, $_} grep {not /\W/} @EXPORT_OK),
-            );
-            for my $sub (keys %methods) {
-                *{$pkg.$sub} = sub {shift; goto &{"XUL::Gui::$methods{$sub}"}}
-            }
-            *{$pkg.'ID'} = *{$pkg.'id'} = sub :lvalue {$XUL::Gui::ID{$_[1]}};
-        }
-        bless {} => substr $pkg, 0, -2;
+
+        if (defined %$pkg)
+            {return $loaded{$pkg} || croak "package '$pkg' not empty"}
+        mapn {
+            my $method = \&{$_[1]};
+            *{$pkg.$_} = sub {shift; goto &$method}
+        } 2 => %{{
+            (map {lc, $_} grep {not /_/} keys %HTML, @{$EXPORT_TAGS{const}}),
+            (map {lcfirst, $_} @Xul),
+            (map {$_, $_} grep {not /\W|^self$/} @EXPORT_OK)
+        }};
+        *{$pkg.'ID'} = *{$pkg.'id'} = sub :lvalue {$XUL::Gui::ID{$_[1]}};
+
+        bless $loaded{$pkg} = {} => substr $pkg, 0, -2
     }}
+
 
 =head1 FUNCTIONS
 
@@ -355,13 +418,15 @@ starts the http server, launches firefox, waits for events
 
 takes a list of gui objects, and several optional parameters:
 
-    debug     (0) .. 3   adjust verbosity to stderr
-    silent    (0) 1      disables all status messages
-    nolaunch  (0) 1      disables launching firefox, connect manually to http://localhost:8888
-    nochrome  (0) 1      chrome mode disables all normal firefox gui elements, setting this
-                         option will turn those elements back on.
-    port      (8888)     first port to try starting the server on, port++ after that
-    delay  milliseconds  delays each gui update cycle
+    debug     (0) .. 3  adjust verbosity to stderr
+    silent    (0) 1     disables all stderr status messages
+    trusted    0 (1)    starts firefox with '-app' (requires firefox 3+)
+    launch     0 (1)    launches firefox, if 0 connect to http://localhost:8888
+    skin       0 (1)    use the default 'chrome://global/skin' skin
+    chrome     0 (1)    chrome mode disables all normal firefox gui elements,
+                        setting this to 0 will turn those elements back on.
+    port      (8888)    first port to start the server on, port++ after that
+    delay  milliseconds delays each gui update cycle (for debugging)
 
 if the first object is a C<Window>, that window is created, otherwise a default
 one is added. the remaining objects are then added to the window.
@@ -371,19 +436,23 @@ C<display> will not return until the the gui quits
 see SYNOPSYS and XUL::Gui::Manual for more details
 
 =cut
-    sub display {$server->start( &parse )}
+    sub display {$server->start( {&parse} )}
 
-    sub dialog {croak 'dialog not implemented yet'}
 
 =item C<quit>
 
-shuts down the server (causes a call to C<display> to return at the end of the current event cycle)
+shuts down the server (causes a call to C<display> to return at the end of the
+current event cycle)
+
+quit will shut down the server, but it can only shut down the client in trusted
+mode.
 
 =cut
     sub quit {
-        gui('quit();') unless @_;
-        $$server{run} = 0;
+        gui('setTimeout("quit()", 5); 0');
+        $$server{run} = 0
     }
+
 
 =item C<serve PATH MIMETYPE DATA>
 
@@ -396,6 +465,7 @@ the paths C<qw( / /client.js /event /ping /exit /perl )> are reserved
 =cut
     sub serve {$server->serve(@_)}
 
+
 =item C<object TAGNAME LIST>
 
 creates a gui proxy object, allows run time addition of custom tags
@@ -404,21 +474,26 @@ creates a gui proxy object, allows run time addition of custom tags
 
 =cut
     sub object {
-        my $tag = lc shift;
+        my $tag = lc (shift or '');
         unshift @_, @{ $defaults{$tag} } if $defaults{$tag};
+
         bless my $self = {
             TAG   => $tag,
             DIRTY => $tag,
             &parse
         } => 'XUL::Gui::Object';
+
         $$self{ID} = $$self{A}{id} ||= genid;
+
         $tag ? $ID{ $$self{ID} } = $self
-             : $self;
+             : $self
     }
+
 
 =item C<tag NAME>
 
-returns a code ref that generates proxy objects, allows for user defined tag functions
+returns a code ref that generates proxy objects, allows for user defined tag
+functions
 
     *mylabel = tag 'label';
 
@@ -429,16 +504,15 @@ returns a code ref that generates proxy objects, allows for user defined tag fun
         my @args = @_;
         sub {
             object @args,
-                (@_ == 1 and not isa 'XUL::Gui::Object' => $_[0])
+                (@_ == 1 and not isa_object $_[0])
                     ? 'TEXT' : (),
                 @_
         }
     }
-
-    no strict 'refs';
-
-    *$_ = tag $_        for @Xul;
-    *$_ = tag $HTML{$_} for keys %HTML;
+    {no strict 'refs';
+        *$_ = tag $_        for @Xul;
+        *$_ = tag $HTML{$_} for keys %HTML;
+    }
 
 
 =item C<widget {CODE} HASH>
@@ -447,128 +521,155 @@ group tags together into common patterns, with methods and inheritance
 
     *MyWidget = widget {
         Hbox(
-            Label( value=> $A{label} ),
-            Button( label=>'OK', attribute 'oncommand' ),
-            @C
+            Label( $_->has('label->value') ),
+            Button( label => 'OK', $_->has('oncommand') ),
+            $_->children
         )
     }   method  => sub{ ... },
-        method2 => sub{ ... };
+        method2 => sub{ ... },
+        some_data => [ ... ];   # unless the value is a CODE ref, each widget
+                                # instance gets a new deep copy of the data
 
-    $ID{someobject}->appendChild( MyWidget( label=>'widget', oncommand=>\&event_handler ) );
+    $ID{someobject}->appendChild(
+        MyWidget( label=>'widget', oncommand=>\&event_handler )
+    );
 
-    inside widgets, several variables are defined
+    inside the widget's code block, several variables are defined:
     variable    contains the passed in
-       %A           attributes
-       @C           children
-       %M           methods
-       $W           a reference to the current widget
+       $_{A} = { attributes }
+       $_{C} = [ children   ]
+       $_{M} = { methods    }
+       $_    = a reference to the current widget (also as $_{W})
+       @_    = unchanged runtime argument list
+
+    widgets have the following predefined (and overridable) methods that are
+    synonyms / syntactic sugar for the widget variables:
+
+       $_->has('label')        ~~ exists $_{A}{label} ? (label=>$_{A}{label}):()
+       $_->has('label->value') ~~ exists $_{A}{label} ? (value=>$_{A}{label}):()
+
+       $_->has('!label !command->oncommand style')
+
+       ->has(...) splits is arguments on whitespace and will search $_{A}, then
+       $_{M} for the attribute. if an ! is attached (anywhere) to an attribute,
+       it is required, and the widget will croak without it
+
+       $_->attr( STRING )     $_{A}{STRING} # lvalue
+       $_->attributes         %{ $_{A} }
+       $_->child( NUMBER )    $_{C}[NUMBER] # lvalue
+       $_->children           @{ $_{C} }
+       $_->can( STRING )      $_{M}{STRING} # lvalue
+       $_->methods            %{ $_{M} }
+
+    most everything that you would want to access is available as a method of
+    the widget (attributes, children, instance data, methods).  since there may
+    be namespace collisions, here is the namespace construction order:
+
+    %widget_methods = (
+        passed in attributes,
+        predefined widget methods,
+        widget methods and instance data,
+        passed in methods
+    );
+
+    widgets can inherit from other widgets using the ->extends() method:
+
+        *MySubWidget = widget {$_->extends( &MyWidget )}
+            submethod => sub{...};
 
     much more detail in XUL::Gui::Manual
 
 =cut
+
     sub widget (&%) {
         my ($code, %methods, $sub) = @_;
+        no strict 'refs';
         $sub = sub {
             my %data;
-            while (my ($k, $v) = each %methods)
-                {$data{$k} = dclone $v if ref $v ne 'CODE'}
+            my $id    = realid;
+            my $inner = \%ID != $id;
+            my $self  = {parse @_};
+            my $wid   = $inner ? genid : $$self{A}{id} || genid;
+            @$self{qw/T ID M/} = ($sub, $wid, {
+                (map {
+                    my $k = $_;
+                    $_ => sub :lvalue {$$self{A}{$k}}
+                } keys %{$$self{A}}),
+                has => sub {
+                    shift;
+                    map {
+                        my $required   = s/!//g;
+                        my ($key, $as) = (/(.+)->(.+)/, $_, $_);
+                        exists $$self{A}{ $key }
+                             ? ($as => $$self{A}{ $key }) :
+                        exists $$self{M}{ $key }
+                             ? ($as => $$self{M}{ $key }) :
+                        $required ? do {
+                            local $Carp::CarpLevel = 1;
+                            croak "widget requires attribute/method '$key'";
+                        } : ()
+                    } map {split /\s+/} @_
+                },
+                attr       => sub :lvalue {$$self{A}{ $_[1] }},
+                child      => sub :lvalue {$$self{C}[ $_[1] ]},
+                can        => sub :lvalue {$$self{M}{ $_[1] }},
+                attributes => sub {%{ $$self{A} }},
+                children   => sub {@{ $$self{C} }},
+                methods    => sub {%{ $$self{M} }},
+                parent     => sub {   $$self{W}  },
+                id         => sub {   $$self{ID} },
+                extends    => sub {
+                    shift;
+                    my $target = (\%ID == realid) ? $self : \%ID;
+                    my $base = $_[0]{W} or croak 'extends takes a widget';
+                    $$target{$_} = $$base{$_} for grep {/[a-z]/} keys %$base;
+                    push @{$$self{ISA}}, $base;
+                    @_
+                },
+                (map {
+                    my ($k, $v) = ($_, $methods{$_});
+                    ref $v eq 'CODE' ? ($k, $v)
+                    : do {
+                        $data{$k} = dclone $v;
+                        $k => sub :lvalue {$data{$k}};
+                    }
+                } keys %methods),
+                %{$$self{M}}
+            });
 
-            my $subwidget = defined %_ID;
-            local *_ID = \%ID unless $subwidget;
+            $$self{$_} = $data{$_} for keys %data;
 
-            my %arg = parse @_;
-            my $wid = $subwidget ? genid : $arg{A}{id} || genid;
-            @arg{qw/M T ID/} = ({ %methods, %{ $arg{M} } }, $sub, $wid);
+            $$id{$wid} = bless $self => 'XUL::Gui::Object';
 
-            my ($C, $A, $M, $W, $cID) = map {(caller)."::$_"} qw/C A M W ID/;
-            local (*$C, *$A, *$M)     = @arg{qw/C A M/};
-            local $$W = $_ID{$wid}    = bless {%data, %arg} => 'XUL::Gui::Object';
-            $ID{$$A{id} || genid }    = $_ID{$wid} if $subwidget;
+            $ID{$$self{A}{id} or genid} = $self if $inner;
 
+            my $callid = (caller).'::ID';
             local %ID;
-            local *$cID = \%ID;
-            $_ID{$wid}{WIDGET} = [ &$code ]; # NOT FINAL
+            local *$callid  = \%ID if defined %$callid;
+            local ($_, *_)  = ($self) x 2;
 
-            for my $k (keys %data) { $$M{$k} = sub : lvalue {$data{$k}} }
-            $_ID{$wid}{M} = { %methods, %$M };
+            $_{W} = $self;
+
+            $$self{NOPROXY} = 1;
+            $$self{ISA}     = [];
+            $$self{CONTENT} = [ &$code ];
+
+            delete $_{W};
 
             for my $i (keys %ID) { # refactor to reduce copying
-                $_ID{$wid}{$i} = $_ID{ my $gid = genid } = $ID{$i};
-                next unless isa 'XUL::Gui::Object' => $ID{$i};
+                $$self{$i} = $$id{ my $gid = genid } = $ID{$i};
+                next unless isa_object $ID{$i};
                 $ID{$i}{N}    = $ID{$i}{A}{id};
                 $ID{$i}{ID}   = $ID{$i}{A}{id} = $gid;
-                $ID{$i}{W}    = $_ID{$wid};
-                $ID{$i}{$_} ||= $ID{$_} for keys %ID;
-                $ID{$i}{$_} ||= $$A{$_} for keys %$A;
+                $ID{$i}{W}    = $self;
+                $ID{$i}{$_} ||= $ID{$_}       for keys %ID;
+                $ID{$i}{$_} ||= $$self{A}{$_} for keys %{$$self{A}};
             }
-            wantarray ? @{ $_ID{$wid}{WIDGET} } : $_ID{$wid}{WIDGET}[0];
+            local *_ = $$self{CONTENT};
+            @_[0 .. $#_]
         }
     }
 
-=item C<extends OBJECT>
-
-indicate that a widget inherits from another widget or tag
-
-    *MySubWidget = widget {extends MyWidget}
-        submethod => sub{...};
-
-    more details in XUL::Gui::Manual
-
-=cut
-    sub extends {
-        croak 'extends only works inside widgets' unless defined %_ID;
-        $ID{$_} = $_[0]{W}{$_} for grep {/[a-z]/} keys %{ $_[0]{W} };
-        %{ (caller).'::M' } = %{ $_[0]{W}{M} };
-        @_
-    }
-
-=item C<attribute NAME>
-
-includes an attribute name if it exists, only works inside of widgets.
-NAME is split on whitespace
-
-    attribute 'label type' # is syntactic sugar for
-    map {$_ => $A{$_}} grep {exists $A{$_}} qw/label type/
-
-    attribute '+' # same as %A
-    attribute '*' # any untouched attributes (by attribute)
-
-=cut
-    sub attribute ($) {
-        croak 'attribute only works inside widgets' unless defined %_ID;
-        my ($A, $W, @ret) = ((caller).'::A', (caller).'::W');
-        my @keys = grep {
-            $_ eq '*' ? do {push @ret, %$A; 0} :
-            $_ eq '+' ? do {push @ret, map {$_ => $$A{$_}}
-                grep {not $$W{SEEN}{$_}} keys %$A; 0
-            } : 1
-        } split /\s+/ => shift;
-        $$W{SEEN}{$_}++ for @keys;
-        @ret, map {$_ => $$A{$_}} grep {exists $$A{$_}} @keys
-    }
-
-
-=item C<XUL STRING>
-
-converts an XML XUL string to XUL::Gui objects.  experimental.
-
-this function is provided to facilitate drag and drop of XML based XUL from tutorials for testing.
-the perl functional syntax for tags should be used in all other cases
-
-=cut
-    {my %xul; @xul{map lc, @Xul} = @Xul;
-    sub XUL {
-        for ("@_") {
-            s {<(\w+)(.+?)}       "$xul{lc $1}($2"g;
-            s {/>}                '),'g;
-            s {</\w+>}            '),'g;
-            s {>}                 ''g;
-            s {(\w+)\s*=\s*(\S+)} "'$1'=>$2"g;
-            s <([^\\](}|"|'))\s+> "$1,"g;
-            return eval 'package '.caller().";$_"
-                or carp "content skipped due to parse failure: $@\n\n$_";
-        }
-    }}
 
 =item C<alert STRING>
 
@@ -577,9 +678,62 @@ open an alert message box
 =cut
     sub alert {
         my $msg = &escape;
-        gui( "alert('$msg');" );
+        gui( "alert('$msg')" );
         wantarray ? @_ : pop
     }
+
+
+=item C<filepicker MODE FILTER_PAIRS>
+
+opens a filepicker dialog. modes are 'open', 'dir', 'save'. returns the path or
+undef on failure. if mode is 'open' and C<filepicker> is called in list context,
+the picker can select multiple files.
+
+    my @files = filepicker open =>
+                    Text   => '*.txt;*.rtf',
+                    Images => '*.jpg;*.gif;*.png';
+
+=cut
+    sub filepicker {
+        my $want = wantarray;
+        my $type = shift || 'open';
+        my $mode = {
+            open => $want
+                    ? [modeOpenMultiple => 'Select Files'   ]
+                    : [modeOpen         => 'Select a File'  ],
+            save =>   [modeSave         => 'Save as'        ],
+            dir  =>   [modeGetFolder    => 'Select a Folder'],
+        }->{$type};
+
+        my $res = gui(qq ~
+            (function () {
+                var nsIFilePicker = Components.interfaces.nsIFilePicker;
+                var fp = Components.classes["\@mozilla.org/filepicker;1"]
+                                   .createInstance(nsIFilePicker);
+                fp.init(window, "$$mode[1]", nsIFilePicker.$$mode[0]);
+             @{[mapn {qq{
+                fp.appendFilter("$_[0]","$_[1]");
+             }} 2 => @_ ]}
+                var res =  fp.show();
+                if (res == nsIFilePicker.returnCancel) return;~ .
+        ($type eq 'open' && $want ? q {
+                var files = fp.files;
+                var paths = [];
+                while (files.hasMoreElements()) {
+                    var arg = files.getNext().QueryInterface(
+                                Components.interfaces.nsILocalFile ).path;
+                    paths.push(arg);
+                }
+                return paths.join("\n")
+        } : q { return fp.file.path;}
+        ) . '})()');
+        defined $res
+            ? $want
+                ? split /\n/ => $res
+                : $res
+            : ()
+    }
+
 
 =item C<trace LIST>
 
@@ -589,16 +743,17 @@ carps LIST with object details, and then returns LIST unchanged
     sub trace {
         my $caller = caller;
         carp 'trace: ', join ', ' => map {
-            (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
+            (isa_object) ? lookup($_, $caller) : $_
         } @_;
         wantarray ? @_ : pop
     }
 
     {my %cache;
     sub lookup {
+        no strict 'refs';
         my $self = shift;
         return $cache{$self} if $cache{$self};
-        return $$self{ID} unless $$self{W} || $$self{T};
+        return $$self{ID} || $self unless $$self{W} || $$self{T};
         no warnings;
         our %space;
         local *space = \%{"$_[0]\::"};
@@ -610,29 +765,21 @@ carps LIST with object details, and then returns LIST unchanged
                         : '{'.($$self{W}{A}{id} || $$self{W}{ID}).'}->{'
                     ).($$self{N} || $$self{ID}).'}'
         }
-        $$self{ID}
+        $$self{ID} || $self
     }}
-
-    use strict 'refs';
-
-    sub calltrace {
-        my $self = $_[0];
-        my $caller = caller 1;
-        our $AUTOLOAD =~ /([^:]+)$/;
-        lookup($self, $caller) . "->$1(" .
-            (join ',' => map {
-                (isa 'XUL::Gui::Object') ? lookup($_, $caller) : $_
-            } @_[1..$#_]) . ")\n";
-    }
 
 
 =item C<function JAVASCRIPT>
 
-create a javascript function, useful for functions that need to be very fast, such as rollovers
+create a javascript event handler, useful for mouse events that need to be very
+fast, such as onmousemove or onmouseover
 
     Button( label=>'click me', oncommand=> function q{
         this.label = 'ouch';
         alert('hello from javascript');
+        if (some_condition) {
+            perl("print 'hello from perl'");
+        }
     })
 
     to access widget siblings by id, wrap the id with C< W{...} >
@@ -646,12 +793,43 @@ create a javascript function, useful for functions that need to be very fast, su
             delay( sub {
                 $js =~ s[\$?W{\s*(\w+)\s*}] [ID.$$self{W}{$1}{ID}]g;
                 gui(
-                    "$func = function (event) {
-                    (function(){ $js }).call( ID.$$self{ID} )
-                }" )
+                    qq{$func = function (event) {
+                        try {return (function(){ $js }).call( ID.$$self{ID} )}
+                        catch (e) {alert( e.name + "\\n" + e.message )}
+                }})
             });
             "$func(event)"
         } ] => 'XUL::Gui::Function'
+    }
+
+
+=item C<interval {CODE} TIME>
+
+perl interface to javascript's C<setInterval()>. interval returns a code ref
+which when called will cancel the interval. TIME is in milliseconds.
+
+=cut
+    sub interval (&$) {
+        my ($code, $time) = @_;
+        my $id = genid;
+        realid($id) = $code;
+        gui( qq{ID.$id = setInterval( "perl('XUL::Gui::realid(q|$id|)->()')", $time)} );
+        sub {gui(qq{clearInterval(ID.$id)})}
+    }
+
+
+=item C<timeout {CODE} TIME>
+
+perl interface to javascript's C<setTimeout()>. timeout returns a code ref which
+when called will cancel the timeout. TIME is in milliseconds.
+
+=cut
+    sub timeout (&$) {
+        my ($code, $time) = @_;
+        my $id = genid;
+        realid($id) = $code;
+        gui( qq{ID.$id = setTimeout( "perl('XUL::Gui::realid(q|$id|)->()')", $time)} );
+        sub {gui(qq{cancelTimeout(ID.$id)})}
     }
 
     sub escape {
@@ -664,37 +842,68 @@ create a javascript function, useful for functions that need to be very fast, su
         }
     }
 
+
+=item C<XUL STRING>
+
+converts an XML XUL string to XUL::Gui objects.  experimental.
+
+this function is provided to facilitate drag and drop of XML based XUL from
+tutorials for testing. the perl functional syntax for tags should be used in all
+other cases
+
+=cut
+    {my %xul; @xul{map lc, @Xul} = @Xul;
+    sub XUL {
+        for ("@_") {
+            s {<(\w+)(.+?)}       "$xul{lc $1}($2"g;
+            s {/>}                '),'g;
+            s {</\w+>}            '),'g;
+            s {>}                 ''g;
+            s {(\w+)\s*=\s*(\S+)} "'$1'=>$2"g;
+            s <([^\\](}|"|'))\s+> "$1,"g;
+            return eval 'package '.caller().";$_"
+                or carp "content skipped due to parse failure: $@\n\n$_"
+        }
+    }}
+
+
 =item C<gui JAVASCRIPT>
 
-executes JAVASCRIPT
+executes JAVASCRIPT in the gui, returns the result
 
 =back
 
 =cut
-
     {my ($buffered, @buffer, $cached, %cache, $now);
         sub gui :lvalue {
-            push @_, "\n";
+            my $msg = "@_\n";
+            my $get = $msg =~ /^GET/;
+               $msg =~ s/^[GS]ET;//;
+
             unless ($now) {
-                push @buffer, @_ and return if $buffered;
-                return $cache{$_[0]} if exists $cache{$_[0]}
+                push @buffer, $msg and return if $buffered;
+                return $cache{$msg} if exists $cache{$msg};
             }
-            $server->write('text/plain', "@_");
+            $server->write('text/plain', $msg);
             my $res = $server->safe_read->{CONTENT};
             croak "invalid response: $res" unless $res =~ /^(...) (.*)/s;
 
-            $res = $1 eq 'OBJ' ?
-                ($ID{$2} || object undef, id=>$2) : $2;
-            $cache{$_[0]} = $res if $cached and $_[0] =~ /^(GET|0)/;
+            $res = $1 eq 'OBJ'
+                       ? ($ID{$2} || object undef, id=>$2)
+                       : $1 eq 'UND'
+                             ? undef
+                             : $2;
+            $cache{$msg} = $res if $cached and $get;
             $res
         }
 
+
 =head2 pragmatic blocks
 
-the following functions all apply pragmas to their CODE blocks.
-in some cases, they also take a list. this list will be C<@_> when
-the CODE block executes.  this is useful for sending in values
-from the gui, if you don't want to use a C<now {block}>
+the following functions all apply pragmas to their CODE blocks. in some cases,
+they also take a list. this list will be C<@_> when the CODE block executes.
+this is useful for sending in values from the gui, if you don't want to use a
+C<now {block}>
 
 =over 8
 
@@ -710,9 +919,10 @@ delays sending gui updates
         sub buffered (&@) {
             $buffered++;
             &{+shift};
-            gui(@buffer),
-                @buffer = () unless --$buffered;
+            gui splice @buffer unless --$buffered;
+            return
         }
+
 
 =item C<cached {CODE}>
 
@@ -723,8 +933,9 @@ turns on caching of gets from the gui
             $cached++;
             my $ret = shift->();
             %cache = () unless --$cached;
-            $ret;
+            $ret
         }
+
 
 =item C<now {CODE}>
 
@@ -735,24 +946,26 @@ execute immediately, from inside a buffered or cached block
             $now++;
             my @ret = shift->();
             $now--;
-            wantarray ? @ret : $ret[0];
+            wantarray ? @ret : $ret[0]
         }
     }
+
 
 =item C<delay {CODE} LIST>
 
 delays executing its CODE until the next gui refresh
 
-useful for triggering widget initialization code that needs to
-run after the gui objects are rendered
+useful for triggering widget initialization code that needs to run after the gui
+objects are rendered
 
 =cut
     sub delay (&@) {
         my $code = shift;
         my @args = @_;
-        push @{$$server{queue}}, sub{ $code->(@args) };
-        return;
+        push @{$$server{queue}}, sub {$code->(@args)};
+        return
     }
+
 
 =item C<noevents {CODE} LIST>
 
@@ -763,21 +976,23 @@ disable event handling
         gui('cacheEvents = false;');
         my @ret = &{+shift};
         gui('cacheEvents = true;');
-        @ret;
+        @ret
     }
+
 
 =item C<doevents>
 
-force a gui update before an event handler finishes
-
-=back
+force a gui update before an event handler finishes (experimental)
 
 =cut
     sub doevents () {
         $server->write('text/plain', 'NOOP');
-        $server->read; # should be safe_read
-        return;
+        $server->safe_read('/ping');
+        return
     }
+
+
+=back
 
 =head2 utility functions
 
@@ -794,15 +1009,19 @@ map over n elements at a time in C<@_> with C<$_ == $_[0]>
     sub mapn (&$@) {
         my ($sub, $n, @ret) = splice @_, 0, 2;
         croak '$_[1] must be >= 1' unless $n >= 1;
-        my $ret = defined wantarray;
+
+        return map $sub->($_) => @_ if $n == 1;
+
+        my $want = defined wantarray;
         while (@_) {
             local *_ = \$_[0];
-            if ($ret) {push @ret =>
+            if ($want) {push @ret =>
                   $sub->(splice @_, 0, $n)}
             else {$sub->(splice @_, 0, $n)}
         }
         @ret
     }
+
 
 =item C<zip LIST of ARRAYREF>
 
@@ -814,6 +1033,7 @@ map over n elements at a time in C<@_> with C<$_ == $_[0]>
             map $$_[$i] => @_
         } 0 .. max map $#$_ => @_
     }
+
 
 =item C<apply {CODE} LIST>
 
@@ -829,18 +1049,21 @@ apply a function to a copy of LIST and return the copy
         wantarray ? @ret : pop @ret
     }
 
+
 =item C<toggle TARGET OPT1 OPT2>
 
 alternate a variable between two states
 
-    toggle $state => 0, 1;
+    toggle $state;          # opts default to 0, 1
+    toggle $state => 'red', 'blue';
 
 =cut
-
     sub toggle {
         no warnings;
-        $_[0] = $_[ 1 + ($_[0] eq $_[1] or $_[0] ne $_[2]) ]
+        my @opt = (splice(@_, 1), 0, 1);
+        $_[0] = $opt[ $_[0] eq $opt[0] or $_[0] ne $opt[1] ]
     }
+
 
 =item C<bitmap WIDTH HEIGHT OCTETS>
 
@@ -848,47 +1071,55 @@ returns a binary .bmp bitmap image. OCTETS is a list of BGR values
 
     bitmap 2, 2, qw(255 0 0 255 0 0 255 0 0 255 0 0); # 2px blue square
 
-=cut
+for efficiency, rather than a list of OCTETS, you can send in a single array
+reference. each element of the array reference can either be an array reference
+of octets, or a packed string C< pack "C*" => OCTETS >
 
+=cut
     sub bitmap {
-        my ($width, $height, @bitmap) = splice @_, 0, 2;
-        my $pad = $width % 4;
-        $pad = 4 - $pad if $pad;
-        for (1 .. $height) {
-            unshift @bitmap, splice( @_, 0, $width*3 ), (0) x $pad
-        }
-        pack 'n V n n (N)2 (V)2 n n N V (N)4 (C)*' =>
+        my ($width, $height) = splice @_, 0, 2;
+
+        my @pad = map {(0) x ($_ and 4 - $_)} ($width*3) % 4;
+
+        my $size = $height * ($width * 3 + @pad);
+
+        pack 'n V n n (N)2 (V)2 n n N V (N)4 (a*)*' =>
             0x42_4D,         # "BM"
-            (54 + @bitmap),  # file size
+            (54 + $size),    # file size
             0x00_00,         # not used
             0x00_00,         # not used
             0x36_00_00_00,   # offset of bitmap data
             0x28_00_00_00,   # remaining bytes in header
             $width,
             $height,
-            0x01_00,         # color planes (always 1)
+            0x01_00,         # color planes
             0x18_00,         # bits/pixel (24)
             0x00_00_00_00,   # no compression
-            scalar(@bitmap), # size of raw BMP data (after header)
-            0x13_0B_00_00,   # horizontal resolution (2,835 pixels/meter)
-            0x13_0B_00_00,   # vertical resolution (2,835 pixels/meter)
+            $size,           # size of raw BMP data (after header)
+            0x13_0B_00_00,   # horizontal res
+            0x13_0B_00_00,   # vertical res
             0x00_00_00_00,   # not used
             0x00_00_00_00,   # not used
-            @bitmap
+            reverse
+              @_ > 1
+                ? map {pack 'C*' => splice(@_, 0, $width*3), @pad} 1 .. $height
+                : map {ref $_
+                     ? pack 'C*'    => @$_, @pad
+                     : pack 'a* C*' =>  $_, @pad
+                } @{$_[0]}
     }
 
 
 =item C<bitmap2src WIDTH HEIGHT OCTETS>
 
-returns a packaged bitmap image that can be directly assigned to an image
-tag's src attribute. arguments are the same as C<bitmap()>
+returns a packaged bitmap image that can be directly assigned to an image tag's
+src attribute. arguments are the same as C<bitmap()>
 
     $ID{myimage}->src = bitmap2src 320, 180, @image_data;
 
 =back
 
 =cut
-
     sub bitmap2src {
         'data:image/bitmap;base64,' . encode_base64 &bitmap
     }
@@ -898,21 +1129,23 @@ tag's src attribute. arguments are the same as C<bitmap()>
 
     # access attributes and properties
 
-        $object->value = 5;                     # sets the value in the gui
-        print $object->value;                   # gets the value from the gui
+        $object->value = 5;                   # sets the value in the gui
+        print $object->value;                 # gets the value from the gui
 
     # the attribute is set if it exists, otherwise the property is set
 
-        $object->_value = 7;                    # sets the property directly
+        $object->_value = 7;                  # sets the property directly
 
     # method calls
 
-        $object->focus;                         # void context
-        $object->appendChild( H2('title') );    # or any arguments are always method calls
-        print $object->someAccessorMethod_;     # append _ to force interpretation as a JS method call
+        $object->focus;                       # void context or
+        $object->appendChild( H2('title') );  # any arguments are always methods
+        print $object->someAccessorMethod_;   # append _ to force interpretation
+                                              # as a JS method call
 
-in addition to mirroring all of an object's existing javascript methods / attributes / and properties
-to perl (with identical spelling / capitalization), several default methods have been added to all objects
+in addition to mirroring all of an object's existing javascript methods /
+attributes / and properties to perl (with identical spelling / capitalization),
+several default methods have been added to all objects
 
 =over 8
 
@@ -920,19 +1153,18 @@ to perl (with identical spelling / capitalization), several default methods have
 
 package
     XUL::Gui::Object;
-    use warnings;
-    use strict;
     my $search; $search = sub {
         my ($self, $method) = @_;
         $self->{M}{$method} or do {
-            for (@{$$self{C}})
+            for (@{$$self{ISA}}, @{$$self{C}})
                 {defined and return $_ for $search->($_, $method)}
         }
     };
 
     sub AUTOLOAD :lvalue {
         my $self = $_[0];
-        return unless (my $AL) = our $AUTOLOAD =~ /([^:]+)$/;
+        (my $AL) = our $AUTOLOAD =~ /([^:]+)$/
+            or Carp::croak 'invalid autoload';
 
         if (my $method = $search->($self, $AL)) { # perl method call
             if (ref $method eq 'ARRAY') {
@@ -942,31 +1174,45 @@ package
             if ($XUL::Gui::DEBUG) {
                 my $caller = caller;
                 print XUL::Gui::lookup($self, $caller) . "->$1(" .
-                    (join ',' => map {(XUL::Gui::isa XUL::Gui::Object)
+                    (join ',' => map {(XUL::Gui::isa_object)
                         ? XUL::Gui::lookup($_, $caller) : $_} @_[1..$#_]). ")\n"
             }
             goto &$method
         }
-        shift;
+        Carp::croak "no method '$AL' on " . XUL::Gui::lookup($self, scalar caller)
+            if $$self{NOPROXY} or not shift->{ID};
+
         if ($AL =~ s/_$// or @_ or not defined wantarray) { # js method call
             my ($js, $arg) = ('') x 2;
-            $_->($self), return for $$self{uc $AL} or ();
-            $arg = join ',', map {
-                XUL::Gui::isa XUL::Gui::Object and do {
+
+            {($$self{uc $AL} or next)->(local $_ = $self); return}
+
+            $arg = join ',', map {not defined and 'null' or
+                XUL::Gui::isa_object and do {
                     if ($_->{DIRTY}) {
                         ($$_{W} ? $$_{W}{W} : $$_{W}) ||= $$self{W};
                         $$_{P} ||= $self;
                         $js .= $_->toJS;
-                    } "ID.$_->{ID}" }
-                    or  "'" . XUL::Gui::escape($_) . "'"
-                } @_;
-            return XUL::Gui::gui($js . "ID.$self->{ID}.$AL($arg);")
+                    } "ID.$_->{ID}"
+                } or "'" . XUL::Gui::escape($_) . "'"
+            } @_;
+            return XUL::Gui::gui "$js; ID.$self->{ID}.$AL($arg);"
         }
         tie my $ret, 'XUL::Gui::Scalar', $self, $AL; # proxy
         $ret
     }
 
-    sub DESTROY {}
+    {my @queue;
+    sub DESTROY {
+        eval {$_[0]{ID}} or return;
+        push @queue, "ID.$_[0]{ID} = null;";
+        if (@queue == 1) {
+            XUL::Gui::delay {
+                XUL::Gui::gui "@queue", @queue = ();
+            }
+        }
+    }}
+    sub CLONE_SKIP {1}
 
     sub registerEvents {
         my $self = shift;
@@ -982,15 +1228,27 @@ package
         my $self = shift;
         my $tab  = shift || 0;
         my @xul  = ();
+        my $text = '';
 
         $self->{DIRTY} = 0;
         $self->registerEvents;
         defined and return $_ for $$self{CODE};
 
         push @xul, "<$self->{TAG} ";
-        push @xul, qq{$_="$self->{A}{$_}" } for keys %{$self->{A}};
-        if (@{$$self{C}}) {
-            push @xul, ">\n";
+        for (keys %{$self->{A}}) {
+            my $val = XUL::Gui::escape
+                ref $$self{A}{$_} eq 'XUL::Gui::Function'
+                    ? $$self{A}{$_}[0]( $self )
+                    : $$self{A}{$_};
+            if (/^TEXT$/) {
+                $val =~ s/\\n/\n/g;
+                $text = $val;
+                next
+            }
+            push @xul, qq{$_="$val" }
+        }
+        if (@{$$self{C}} or $text) {
+            push @xul, ">$text\n";
             push @xul, "\t" x ($tab+1), $_->toXUL($tab+1) for @{$$self{C}};
             push @xul, "\t" x $tab, "</$self->{TAG}>\n";
         } else {
@@ -1033,9 +1291,10 @@ package
         join "\n" => @js, $final ? "$final.appendChild($id);" : ''
     }
 
+
 =item C<< ->removeChildren( LIST ) >>
 
-removes the children in LIST, or all children if none given
+removes the children in LIST, or all children if none are given
 
 =cut
     sub removeChildren {
@@ -1045,9 +1304,10 @@ removes the children in LIST, or all children if none given
         $self
     }
 
+
 =item C<< ->removeItems( LIST ) >>
 
-removes the items in LIST, or all items if none given
+removes the items in LIST, or all items if none are given
 
 =cut
     sub removeItems {
@@ -1056,6 +1316,7 @@ removes the items in LIST, or all items if none given
             : XUL::Gui::gui "removeItems(ID.$self->{ID});";
         $self
     }
+
 
 =item C<< ->appendChildren( LIST ) >>
 
@@ -1067,6 +1328,7 @@ appends the children in LIST
         XUL::Gui::buffered {$self->appendChild($_) for @_} @_;
         $self
     }
+
 
 =item C<< ->prependChild( CHILD, [INDEX] ) >>
 
@@ -1080,15 +1342,15 @@ inserts CHILD at INDEX (defaults to 0) in the parent's child list
         } else {
             $first = $self->firstChild;
             while ($count-- > 0) {
-                last if $first eq 'null';
+                last unless $first;
                 $first = $first->nextSibling;
             }
         }
-        $first eq 'null'
-            ? $self->appendChild( $child )
-            : $self->insertBefore( $child, $first );
+        $first ? $self->insertBefore( $child, $first )
+               : $self->appendChild ( $child );
         $self
     }
+
 
 =item C<< ->appendItems( LIST ) >>
 
@@ -1098,13 +1360,14 @@ append a list of items
     sub appendItems {
         my ($self, @items) = @_;
         XUL::Gui::buffered {
-            (XUL::Gui::isa XUL::Gui::Object)
+            (XUL::Gui::isa_object)
                 ? $self->appendChild($_)
                 : $self->appendItem( ref eq 'ARRAY' ? @$_ : $_ )
             for @items
         };
         $self
     }
+
 
 =item C<< ->replaceItems( LIST ) >>
 
@@ -1127,17 +1390,17 @@ removes all items, then appends LIST
 package
     XUL::Gui::Scalar;
     our @ISA = 'XUL::Gui::Object';
-    use warnings;
-    use strict;
     use Carp;
 
     sub TIESCALAR {bless [ @_[1..$#_] ] => $_[0]}
+    sub DESTROY {}
+    sub CLONE_SKIP {1}
 
     sub FETCH {
         my ($self, $AL) = @{+shift};
         return $self->{uc $AL} if $AL =~ /^on/;
         XUL::Gui::gui $AL =~ /^_(.+)/
-            ? "0;ID.$self->{ID}\['$1'];"
+            ? "GET;ID.$self->{ID}\['$1'];"
             : "GET(ID.$self->{ID}, '$AL');"
     }
 
@@ -1145,86 +1408,90 @@ package
         my ($self, $AL, $new) = (@{+shift}, @_);
         if ($AL =~ /^on/) {
             if (ref $new eq 'XUL::Gui::Function') {
-                XUL::Gui::gui $$new[0];
-                $new = $$new[1]
+                $new = $$new[0]($self);
             } else {
                 not defined $new or ref $new eq 'CODE'
                     or croak "assignment to event handler must be CODE ref or undef";
                 $new = $new ? do {$$self{uc $AL} = $new; 'EVT(event)'} : '';
             }
         }
-        $new = XUL::Gui::escape $new;
+        $new = defined $new ? "'" . XUL::Gui::escape($new) . "'" : 'null';
         XUL::Gui::gui $AL =~ /^_(.+)/
-            ? "1;ID.$self->{ID}\['$1'] = '$new';"
-            : "SET(ID.$self->{ID}, '$AL', '$new');"
+            ? "SET;ID.$self->{ID}\['$1'] = $new;"
+            : "SET(ID.$self->{ID}, '$AL', $new);"
     }
 
 
 package
     XUL::Gui::Server;
-    use warnings;
-    use strict;
     use Carp;
     use File::Find;
     use IO::Socket;
     use Time::HiRes qw/usleep/;
 
     my $port = 8888;
-    our ($req, $client_js, $silent);
+    our ($req, $client_js, $silent, $active);
 
-    sub init {bless {}}
+    sub new {bless {}}
 
-    sub message {print STDERR "XUL::Gui> @_\n" unless $silent}
+    sub message {print STDERR "XUL::Gui> @_\n" unless $silent; 1}
 
     sub start {
-        my $self    = shift || init;
-        my %args    = @_;
-        my @content = @{ $args{C} };
-        my %params  = %{ $args{A} };
+        my $self        = shift;
+        $$self{args}    = shift;
+        $$self{content} = $$self{args}{C};
 
-        local $silent = $params{silent};
+        $$self{$_} = $$self{args}{A}{$_}
+            for qw(debug silent trusted launch skin chrome port delay);
 
-        @$self{keys %params} = values %params;
+        local $silent = $$self{silent};
+
+        defined $$self{$_} or $$self{$_} = 1
+            for qw(launch chrome skin);
 
         $$self{caller} = caller 1;
 
         message "version $VERSION" if
-            local $DEBUG = $params{debug} || $DEBUG;
+            local $DEBUG = $$self{debug} || $DEBUG;
 
-        my $port = $params{port} || $port++;
-        $port++ until $$self{server} = IO::Socket::INET->new(
+        $active = $self;
+
+        $$self{port} ||= $port++;
+        $$self{port}++ until $$self{server} = IO::Socket::INET->new(
             Proto     => 'tcp',
             PeerAddr  => 'localhost',
-            LocalAddr => "localhost:$port",
+            LocalAddr => "localhost:$$self{port}",
             Listen    => 1,
         );
 
         local $| = 1;
-        message "server started: http://localhost:$port";
+        message "server started: http://localhost:$$self{port}";
 
         my $root;
         $$self{dispatch} = {
             exists $$self{dispatch} ? %{$$self{dispatch}} : (),
             '/' => sub {
-                my $res = qq{<?xml version="1.0" encoding="UTF-8"?>\n<?xml-stylesheet }.
-                          qq{href="chrome://global/skin" type="text/css"?>\n};
+                my $res = qq{<?xml version="1.0" encoding="UTF-8"?>\n};
+                   $res.= qq{<?xml-stylesheet href="chrome://global/skin" type="text/css"?>\n} if $$self{skin};
 
-                $root = $content[0]->{TAG} eq 'window'
-                            ? shift @content
+                $root = $$self{content}[0]->{TAG} eq 'window'
+                            ? shift @{$$self{content}}
                             : XUL::Gui::Window();
 
                 $$self{onunload} ||= $$root{A}{onunload};
-                $$root{A}{onunload} = q{ send('exit','') };
-                unshift @content, @{ $root->{C} };
-                $root->{C} = [ XUL::Gui::Script(src=>'/client.js') ];
+                $$self{onclose}  ||= $$root{A}{onclose};
+                $$root{A}{onclose}  = q{ return shutdown() };
+                $$root{A}{onunload} = q{ return shutdown() };
+                unshift @{$$self{content}}, @{ $root->{C} };
+                $root->{C} = [ XUL::Gui::Script(src=>"http://localhost:$$self{port}/client.js") ];
                 $self->write('application/vnd.mozilla.xul+xml', $res . $root->toXUL);
             },
             '/client.js' => sub {
                 $self->write( 'text/javascript', qq~
-                    var port = $port;
+                    var port = $$self{port};
                     $client_js;
                     var root = ID.$root->{ID} = document.getElementById('$root->{ID}');~ .
-                    join ";" => map {$_->toJS("ID.$root->{ID}")} @content
+                    join ";" => map {$_->toJS("ID.$root->{ID}")} @{$$self{content}}
                 )
             },
             '/event' => sub {
@@ -1234,7 +1501,8 @@ package
                 $id  = $root->{ID} if $id eq 'undefined'; # why doesn't onunload window send id?
                 $id  = $ID{$id}{P}{ID} while $ID{$id}{P} and not $ID{$id}{$evt}; # more xul bugs
                 if (ref $ID{$id}{$evt} eq 'CODE') {
-                    $ID{$id}{$evt} -> ( $ID{$id}, XUL::Gui::object(undef, id=>$obj) )
+                    $ID{$id}{$evt}->( local $_ = $ID{$id},
+                                      XUL::Gui::object(undef, id=>$obj) )
                 } else {message "no event handler found: $req->{CONTENT}"}
                 $self->write('text/plain', 'NOOP');
             },
@@ -1247,80 +1515,144 @@ package
             '/favicon.ico' => sub {
                 $self->write('text/plain', '');
             },
-            '/exit' => sub {
-                $$self{run} = 0;
-                no warnings;
-                local our @CARP_NOT = qw/XUL::Gui XUL::Gui::Server XUL::Gui::Object/;
-                local *XUL::Gui::gui = sub {croak 'gui not available'};
-                use warnings;
-                ref eq 'CODE' and $_->() for $$self{onunload};
+            '/close' => sub {
+                my $shutdown = 1;
+                for (grep defined, @$self{qw/onclose onunload/}) {
+                    $shutdown = ref eq 'CODE' ? $_->() : XUL::Gui::gui $_;
+                }
+                $self->write('text/plain', 'RETURN ' . ($shutdown ? 'true' : 'false'));
+                $$self{run} = ! $shutdown;
             }
         };
-        unless ($params{nolaunch}) {
-            if ($^O =~ /darwin/) {
+        if ($$self{launch}) {
+            my @firefox;
+            find sub {push @firefox, [length, $File::Find::name]
+                        if /^firefox(?:-bin|\.exe)?$/ and -f} => $_
+                for grep {/mozilla|firefox/i and -d}
+                    map {
+                        opendir my $handle => my $dir = $_;
+                        map "$dir/$_" => readdir $handle
+                    } grep -d,
+                        $^O =~ /MSWin/  ? (map {chomp; "$_\\"}
+                                           split /,/ => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`) :
+                        $^O =~ /darwin/ ? qw(. /Applications) :
+                        split  /[:;]/  => $ENV{PATH};
+
+            if (@firefox = sort {$$a[0] < $$b[0]} @firefox) {
                 message 'launching firefox';
-                system qq[osascript -e 'tell application "Firefox" to OpenURL "http://localhost:$port"']
-            } else {
-                my @firefox;
-                for my $dir (
-                    ($^O =~ /MSWin/)
-                        ? (map {chomp; "$_\\"} split ',' => `echo \%ProgramFiles\%,\%ProgramFiles(x86)\%`)
-                        : split /[:;]/ => $ENV{PATH}
-                ) {
-                    find sub {push @firefox, [$_, $File::Find::name] if /^firefox(?:-bin|\.exe)?$/ and -f} => $_
-                        for grep {/mozilla|firefox/i} map {"$dir/$_"} grep -d, (-d $dir and chdir $dir) ? <*> : ()
-                }
-                if (@firefox = sort {length $$a[0] < length $$b[0]} @firefox) {
-                    message 'launching firefox';
-                    unless ($$self{pid} = fork) {
-                        $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
-                        exec qq{"$firefox[0][1]" }
-                            . ($params{nochrome} ? '' : '-chrome ')
-                            . ($params{trusted}
-                                ? qq{"chrome://xulgui/content/xulgui.xul?$port"}
-                                : qq{"http://localhost:$port"}
-                            ).(q{ 1>&2 2>/dev/null} x ($^O !~ /MSWin/))
+                my $app;
+                for ($$self{trusted}) {defined and !$_  or
+                                        $_ = `"$firefox[0][1]" -v` =~ /firefox 3/i}
+                if  ($$self{trusted}) {
+                    require "File/$_.pm" for qw/Temp Spec/;
+
+                    $$self{dir} = File::Temp->newdir;
+                    $$self{dir}->unlink_on_destroy(0); # for threads
+
+                    my $name = $$self{dir}->dirname;
+                    my $base = 'xulgui' .  time;
+
+                    my ($file, $dir) = map {my $method = $_;
+                        sub {File::Spec->$method( $name, $base, split /\s+/ => "@_" )}
+                    } qw( catfile catdir );
+
+                    mkdir File::Spec->catdir($name, $base);
+                    mkdir $dir->($_) for qw(chrome defaults),
+                                           "chrome $base",
+                                           'defaults preferences';
+
+                    open my $manifest, '>', $file->('chrome chrome.manifest');
+                    print $manifest "content $base file:$base/";
+
+                    open my $boot, '>', $file->('chrome', $base, 'boot.xul');{
+                        no warnings 'redefine';
+                        local *write = sub {pop};
+                        print $boot $$self{dispatch}{'/'}();
+                    }
+
+                    open my $prefs, '>', $file->('defaults preferences prefs.js');
+                    print $prefs qq {pref("toolkit.defaultChromeURI", "chrome://$base/content/boot.xul");};
+
+                    open my $ini, '>', $app = $file->('application.ini');
+                    print $ini split /[\t ]+/ => qq {
+                        [App]
+                        Name=$base
+                        Version=$XUL::Gui::VERSION
+                        BuildID=${\time}
+
+                        [Gecko]
+                        MinVersion=1.8
+                        MaxVersion=3
                     }
                 }
-                else {local $silent; message 'firefox not found: start manually'}
+                if (not $$self{trusted} and $^O =~ /darwin/) {
+                    system qq[osascript -e 'tell application "Firefox" to OpenURL "http://localhost:$$self{port}"']
+                } else {
+                    my ($chrome, $port) = @$self{qw/chrome port/};
+                     unless (fork) {
+                        $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
+                        exec qq{"$firefox[0][1]" }
+                            . ($app
+                                ? "-app $app"
+                                : ($chrome ? '-chrome ' : '')
+                                    . qq{"http://localhost:$port"}
+                            ) . (q{ 1>&2 2>/dev/null} x ($^O !~ /MSWin/))
+                    }
+                }
             }
+            else {local $silent; message 'firefox not found: start manually'}
         }
         $$self{run} = 1;
         $$self{cycle} = sub {
             if ($$self{dispatch}{$$req{URL}}) {
                 $$self{dispatch}{$$req{URL}}->()
-            } elsif (open FILE, '.'.$$req{URL}) {
-                $self->write('text/plain', do{local $/; <FILE>})
+            } elsif (open my $file, '<', '.'.$$req{URL}) {
+                $self->write('text/plain', do{local $/; <$file>})
             } else {
                 message "file: $$req{URL} not found";
                 $self->write('text/plain', '')
             }
         };
-        while ($$self{client} = $$self{server}->accept) {
-            $$self{client}->autoflush(1);
-            message 'client connected';
-            while (local $req = $self->read) {
-                $$self{cycle}->();
-                last unless $$self{run}
+        eval {
+            while ($$self{client} = $$self{server}->accept) {
+                $$self{client}->autoflush(1);
+                message 'client connected';
+                while (local $req = $self->read) {
+                    $$self{cycle}->();
+                    $$self{run} or last
+                }
+                close $$self{client};
+                $$self{run} or last
             }
-            close $$self{client};
-            last unless $$self{run}
-        }
+        };
+        my $error = $@;
+        eval {$$self{client}->close}; $$self{client} = undef;
+        eval {$$self{server}->close}; $$self{server} = undef;
+        undef $active;
+        {($$self{dir} or last)->unlink_on_destroy(1)}
+        ref $error eq 'server stopped' or die $error if $error;
         $self->stop('server stopped')
     }
 
     sub safe_read {
-        my $self = shift;
+        my ($self, $stop) = (@_, '/res');
         while (local $req = $self->read) {
             message "safe read $$req{URL}" if $DEBUG > 2;
-            return $req if $$req{URL} eq '/res';
+            return $req if $$req{URL} eq $stop;
             $$self{cycle}->();
-            return unless $$self{run}
+            die bless [] => 'server stopped' unless $$self{run}
         }
+    }
+
+    sub assert {
+        return if $_[0];
+        my $name = ((caller 2)[3] =~ /([^:]+)$/ ? "$1 " : '') . pop;
+        croak "XUL::Gui> $name error: client not connected,"
     }
 
     sub read {
         my ($self, $client, %req) = ($_[0], $_[0]{client});
+        assert $client => 'read';
         local ($/, $_) = "\015\012";
         reset;
         while (<$client>) {chomp;
@@ -1331,16 +1663,16 @@ package
         }
         for ($req{URL}) {
             if ($$self{delay})
-                {usleep 1000*$$self{delay} unless m|/ping|}
+                {usleep 1000*$$self{delay} unless m|^/ping$|}
             unless (defined) {
-                $self->write( 'text/javascript', 'alert("error: broken message received")' );
-                die 'broken message received';
+                croak 'broken message received';
             }
             ($_, $req{CONTENT}) = ($1, "OBJ $2")  if  /(.+?)\?(.*)/;
-            message "read $_ $req{CONTENT}"       if  $DEBUG > 2 && !m|/ping|;
-            if (m|/perl|) {
+            message "read $_ $req{CONTENT}"       if  $DEBUG > 2 && !m|^/ping$|;
+            if (m|^/perl$|) {
+                message "perl $req{CONTENT}" if $DEBUG > 1;
                 $self->write( 'text/plain', 'RETURN '.
-                    (eval("no strict;package $$self{caller}; $req{CONTENT}") || '' ));
+                    (eval "no strict; package $$self{caller}; $req{CONTENT}" or '') );
                 %req = %{ $self->read }
             }
         }
@@ -1348,8 +1680,9 @@ package
     }
 
     sub write {
+        assert my $client = $_[0]{client} => 'write';
         message "write @_[1,2]" if $DEBUG > 2;
-        print {$_[0]{client}} join "\015\012" =>
+        print $client join "\015\012" =>
             'HTTP/1.1 200 OK',
             'Expires: -1',
             'Keep-Alive: 300',
@@ -1361,19 +1694,25 @@ package
     }
 
     sub stop {
-        message @_[1..$#_];
         local $SIG{HUP} = 'IGNORE';
-        kill 1, -($^O =~ /MSWin/ ? shift->{pid} : $$);
+        kill HUP => -$$;
+        message @_[1..$#_];
     }
 
     sub serve {
         my ($self, $path, $type, $data) = @_;
-        $path =~ m[^/(?:client.js|event|ping|exit)?$]
-            and croak 'reserved path';
+        $path =~ m[^/(?:client.js|event|ping|exit|perl)?$]
+            and croak "reserved path: $path";
         $$self{dispatch}{$path} = sub {
             $self->write($type, $data)
         };
         $path
+    }
+
+    sub CLONE {
+        eval {$$active{client}->close};
+        eval {$$active{server}->close};
+        eval {undef $$active{$_} for keys %$active};
     }
 
     $client_js = <<'END';
@@ -1432,8 +1771,6 @@ Function.prototype.extends = Object.prototype.extends = function (super) {
    this.prototype.__super = super;
 }
 
-
-
 Object.prototype.__defineGetter__('keys', function ()  {
     var out = [];
     for (var i in this) {
@@ -1459,9 +1796,11 @@ var server      = new XMLHttpRequest();
 
 function pinger () {
     if (mutex || !cacheEvents) return;
-    mutex = true;
-    send('ping', null);
-    mutex = false;
+    EVT(null);
+}
+
+function shutdown () {
+    return send('close','');
 }
 
 var retre = new RegExp(/^RETURN (.*)/);
@@ -1469,21 +1808,30 @@ function send (to, val) {
     var url = host + to;
     var resurl = host + 'res';
     var type;
+    var realval;
     while (1) {
         server.open( 'POST', url, false );
         server.send( val );
         if (server.responseText != 'NOOP') {
             var ret = server.responseText.match(retre);
-            if (ret) return ret[1];
-            try {val = eval( server.responseText )}
-            catch(e) {alert( [ e.name, server.responseText, e.message ].join("\n\n") )}
+            if (ret) return eval (ret[1]);
+            try {realval = eval( server.responseText )}
+            catch(e) {
+                if (e == 'quit') {
+                    server = null;
+                    return;
+                }
+                alert( [ e.name, server.responseText, e.message ].join("\n\n") )}
 
+            url = resurl;
+            val = realval;
             type = typeof val;
 
             if (val == 0 && type != 'string') {val = '0'}
-            else if (val == null) {val = 'null'}
+            else if (val == null || val == undefined) {val = 'UND EF'; continue}
 
-            url = resurl;
+            if (val === true)  {val = 'RES 1'; continue}
+            if (val === false) {val = 'RES 0'; continue}
 
             if (type == 'object') {
                 if (val.hasAttribute && val.hasAttribute('id'))
@@ -1497,41 +1845,9 @@ function send (to, val) {
         }
         else {break}
     }
-    return val;
-}
-/*
-function send (to, val) {
-    perl.open( 'POST', server + to );
-    perl.send( val );
+    return realval;
 }
 
-perl.onreadystatechange = function () {
-    if (perl.readyState != 4) return;
-    var val;
-    if (perl.responseText != 'NOOP') {
-        var ret = perl.responseText.match(retre);
-        if (ret) return ret[1];
-        try {val = eval( perl.responseText )}
-        catch(e) {alert( [ e.name, perl.responseText, e.message ].join("\n\n") )}
-
-        var type = typeof val;
-
-        if (val == 0 && type != 'string') {val = '0'}
-        else if (val == null) {val = 'null'}
-
-        if (type == 'object') {
-            if (val.hasAttribute && val.hasAttribute('id'))
-                {val = 'OBJ ' + val.getAttribute('id')}
-            else {
-                ID[ 'xul_js_' + id ] = val;
-                val = 'OBJ xul_js_' + id++;
-            }
-        }
-        else {val = 'RES ' + val}
-        send('res', val)
-    }
-}
-*/
 var xul_id = function (obj) {
     do {
         if (obj.id) return obj.id
@@ -1541,16 +1857,18 @@ var xul_id = function (obj) {
 
 function EVT (event) {
     if (noEvents.__count__ > 0 && xul_id(event.target) in noEvents) return;
-    if (mutex){
+    if (mutex) {
         if(cacheEvents && event)
             queue.push(event);
         return;
     }
     mutex = true;
+    var ret;
     do {
         if (event) {
             if (event.type == 'perl') {
-                send('perl', event.code)
+                ret = send('perl', event.code);
+                break;
             } else {
                 ID['xul_js_' + id] = event;
                 send('event', 'EVT ' + xul_id(event.target) +
@@ -1561,7 +1879,8 @@ function EVT (event) {
         }
     } while (event = queue.shift());
     mutex = false;
-    if(event) setTimeout(pinger, 10);
+    if (event) setTimeout(pinger, 10);
+    return ret;
 }
 
 function GET (self, k) {
@@ -1585,7 +1904,16 @@ function SET (self, k, v) {
 function quit () {
     clearInterval(interval);
     EVT = function(){};
-    window.close();
+    try {
+        var appStartup = Components.classes[
+            '@mozilla.org/toolkit/app-startup;1'
+        ].getService(Components.interfaces.nsIAppStartup);
+        appStartup.quit(Components.interfaces.nsIAppStartup.eForceQuit);
+    } catch (e) {}
+    try {
+        window.close();
+    } catch (e) {}
+    throw 'quit';
 }
 
 function removeChildren (element) {
@@ -1608,15 +1936,6 @@ function perl (code) {
     return mutex ? send('perl', code)
                  : EVT({ type: 'perl', code: code })
 }
-var Perl = perl;
-
-function dialog (target, code) {
-    return target.install(code)
-}
-
-function install (code){
-    return eval(code)
-}
 
 Element.prototype.computed = function (style) {
     return document.defaultView.getComputedStyle( this, null ).getPropertyValue( style )
@@ -1630,28 +1949,48 @@ Element.prototype.noEvents = function (value) {
 
 END
 
+
 =head1 CAVEATS
 
-currently, it is not possible to open more than one window, or to use
-any features available to privileged chrome apps. in most cases you
-can get away with doing what you need in perl, but having proper file
-dialogs and drag/drop would be nice, so this is near the top of my
-todo list.
+some options for display have been reworked from 0.36 to remove double negatives
 
-the code that attempts to find firefox may not work in all cases, patches welcome
+widgets have changed quite a bit from version 0.36. they are the same under the
+covers, but the external interface is cleaner. for the most part, the following
+substitutions are all you need:
 
-for the TextBox object, the behaviors of the "value" and "_value" methods are reversed.
-it works better that way and is more consistent with the behavior of other tags.
+    $W       -->  $_ or $_{W}
+    $A{...}  -->  $_{A}{...} or $_->attr(...)
+    $C[...]  -->  $_{C}[...] or $_->child(...)
+    $M{...}  -->  $_{M}{...} or $_->can(...)
+
+    attribute 'label onclick'  -->  $_->has('label onclick')
+    widget {extends ...}       -->  widget {$_->extends(...)}
+
+export tags were changed a little bit from 0.36
+
+thread safety should be better than in 0.36
+
+currently it is not possible to open more than one window, hopefully this will
+be fixed in the next release
+
+the code that attempts to find firefox may not work in all cases, patches
+welcome
+
+for the TextBox object, the behaviors of the "value" and "_value" methods are
+reversed. it works better that way and is more consistent with the behavior of
+other tags.
 
 =head1 AUTHOR
 
-Eric Strom, C<< <ejstrom at gmail.com> >>
+Eric Strom, C<< <asg at cpan.org> >>
 
 =head1 BUGS
 
-please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=XUL-Gui>.
-I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
+please report any bugs or feature requests to C<bug-xul-gui at rt.cpan.org>, or
+through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=XUL-Gui>. I will be notified,
+and then you'll automatically be notified of progress on your bug as I make
+changes.
 
 =head1 ACKNOWLEDGMENTS
 
@@ -1659,14 +1998,14 @@ the mozilla development team
 
 =head1 COPYRIGHT & LICENSE
 
-copyright 2009 Eric Strom.
+copyright 2009-2010 Eric Strom.
 
-this program is free software; you can redistribute it and/or modify it
-under the terms of either: the GNU General Public License as published
-by the Free Software Foundation; or the Artistic License.
+this program is free software; you can redistribute it and/or modify it under
+the terms of either: the GNU General Public License as published by the Free
+Software Foundation; or the Artistic License.
 
 see http://dev.perl.org/licenses/ for more information.
 
 =cut
-no warnings;
-'XUL::Gui';
+
+__PACKAGE__ if 'first require'

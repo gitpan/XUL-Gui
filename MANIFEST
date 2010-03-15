@@ -4,6 +4,7 @@ Changes
 ignore.txt
 lib/XUL/Gui.pm
 lib/XUL/Gui/Manual.pm
+lib/XUL/Gui/Tutorial.pm
 Makefile.PL
 MANIFEST
 README
