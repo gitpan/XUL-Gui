@@ -7,7 +7,7 @@ build_requires:
 configure_requires:
   Module::Build: 0.36
 dynamic_config: 0
-generated_by: 'Module::Build version 0.3603'
+generated_by: 'Module::Build version 0.3607'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,7 +16,7 @@ name: XUL-Gui
 provides:
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.40
+    version: 0.50
   XUL::Gui::Manual:
     file: lib/XUL/Gui/Manual.pm
   XUL::Gui::Tutorial:
@@ -24,12 +24,19 @@ provides:
 requires:
   Carp: 0
   Encode: 0
+  Exporter: 0
   File::Find: 0
+  File::Path: 0
+  File::Spec: 0
+  File::Temp: 0.19
   IO::Socket: 0
   List::Util: 0
   MIME::Base64: 0
+  Scalar::Util: 0
   Storable: 0
   Time::HiRes: 0
+  strict: 0
+  warnings: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.40
+version: 0.50

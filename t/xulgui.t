@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
-use Test::More tests => 26;
+use Test::More tests => 36;
 
 use Data::Dumper;
 $Data::Dumper::Useqq = 1;
@@ -44,6 +44,16 @@ ok  'tags'
 =>  $$lbl{A}{value} eq 'test'
 &&  $$lbl{TAG}      eq 'label';
 
+ok  'valid id'
+=>    eval {Label id => 'abc123_'}
+&&  ! eval {Label id => 'asdf 234'};
+
+ok  'style concat'
+=>  eval {
+		Label(style => 'color: red', style => 'font-weight: bold')
+			-> {A}{style} eq 'color: red;font-weight: bold;'
+	};
+
 ok  'oo constructor'
 =>  eval {XUL::Gui->oo('g')};
 
@@ -70,7 +80,7 @@ ok 'server assert pre'
 
 SKIP: {
     print STDERR '    skipped gui tests: define $ENV{XUL_GUI_TEST} to enable'
-    and skip 'gui tests: define $ENV{XUL_GUI_TEST} to enable', 14
+    and skip 'gui tests: define $ENV{XUL_GUI_TEST} to enable', 22
         unless defined $ENV{XUL_GUI_TEST};
 
     display silent=>1, Window title=>'XUL::Gui test', minwidth=>640, minheight=>480,
@@ -79,18 +89,24 @@ SKIP: {
             Button( id=>'btn', label => 'button',
                 oncommand=>sub {$_->label = 'ouch'}
             ),
-            delay {
+			Button( id=>'btn_js', label => 'javascript button',
+                oncommand=> function q {this.label = 'ouch!'}
+            ),
+            delay { timeout { delay {
                 ok 'server assert running'
                 => eval {gui '1'};
                 ok 'launch gui', 1;
                 ok 'get value' => $ID{lbl}->value eq 'label';
 
-                $ID{lbl}->value = 'update';
-                ok 'set value' => $ID{lbl}->value eq 'update';
+                ok 'return'    => ($ID{lbl}->value = 'update') eq 'update';
+                ok 'set value' =>  $ID{lbl}->value eq 'update';
 
                 $ID{btn}->click;
                 doevents;
-                ok 'event handler' => $ID{btn}->label eq 'ouch';
+                ok 'perl event handler' => $ID{btn}->label eq 'ouch';
+
+				ID(btn_js)->click;
+				ok 'javascript event handler' => $ID{btn_js}->label eq 'ouch!';
 
                 ok 'tr boolean true'  => gui('true')  == 1;
                 ok 'tr boolean false' => gui('false') == 0;
@@ -110,9 +126,16 @@ SKIP: {
                         $x->val2 == 7;
                     };
 
-                gui q {perl( "ok 'call perl from js', 1" )};
+                ok 'return from perl()'
+				=> $$ == gui q {perl( "ok 'call perl from js', 1; $$;" )};
 
                 my $widget = widget {
+					unless ($_->has('skip')) {
+						ok 'widget local $_{W}'
+						=> $_ == $_{W};
+						ok 'widget local ID'
+						=> \%ID == \%XUL::Gui::ID;
+					}
                     Label id=>'lbl', $_->has('label->value!')
                 } test => sub {
                     shift->{lbl}->value;
@@ -136,22 +159,37 @@ SKIP: {
                 ok  'widget test 1'
                 =>  $ID{wt1}->test eq 'widget test 1';
 
-                $widget = g->widget(sub {
-                    g->label( id=>'lbl', value=>$_{A}{label} )
-                }, test => sub {
+                my $widget2 = g->widget(sub {g->hbox(
+                    g->label( id=>'lbl', value=>$_{A}{label} ),
+					$widget->(-id => 'subwidget', -label => 'subwidget test', -skip => 1)
+				)}, test => sub {
                     shift->{lbl}->value
                 });
 
-                $ID{main}->appendChild(scalar $widget->(id => 'wt2', label => 'widget test 2'));
+                $ID{main}->appendChild(scalar $widget2->(id => 'wt2', label => 'widget test 2'));
 
                 ok  'widget test 2'
-                =>  $ID{wt2}->test eq 'widget test 2';
+                =>  g->ID('wt2')->test eq 'widget test 2';
 
+				ok  'widget nesting'
+				=>  $ID{wt2}{subwidget}{lbl}->value eq 'subwidget test';
+
+				my $inner = widget {Button id => 'btn', label => 'inner'}
+					itest => sub {shift->parent->{caption}->label eq 'outer'};
+				my $outer = widget {Groupbox Caption(id => 'caption', label=>'outer'), $inner->(id => 'innerw')}
+					otest => sub {shift->{innerw}{btn}->label eq 'inner'};
+
+				$ID{main}->replaceChildren($outer->(id => 'outer'));
+
+				ok 'widget outer' => ID(outer)->otest;
+				ok 'widget inner' => ID(outer)->{innerw}->itest;
+
+				#    mro ISA
 
                 $ID{main}->removeChildren
                          ->appendChild(H2 'tests done, close window');
                 quit
-            };
+            }} 10 };
     ok 'server assert post'
     => ! eval {gui '1'};
 }

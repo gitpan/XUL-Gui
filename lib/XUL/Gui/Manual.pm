@@ -368,7 +368,7 @@ also behave like classes, using the extends method.
         )}
         supermethod = sub{ ... };
 
-    *SubClass = widget{ extends &SuperClass }
+    *SubClass = widget{ $_->extends( &SuperClass )}
         submethod = sub{ ... };
 
 any SubClass objects now have both the 'submethod' and 'supermethod' methods,
