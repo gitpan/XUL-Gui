@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
-use Test::More tests => 36;
+use Test::More tests => 37;
 
 use Data::Dumper;
 $Data::Dumper::Useqq = 1;
@@ -80,7 +80,7 @@ ok 'server assert pre'
 
 SKIP: {
     print STDERR '    skipped gui tests: define $ENV{XUL_GUI_TEST} to enable'
-    and skip 'gui tests: define $ENV{XUL_GUI_TEST} to enable', 22
+    and skip 'gui tests: define $ENV{XUL_GUI_TEST} to enable', 23
         unless defined $ENV{XUL_GUI_TEST};
 
     display silent=>1, Window title=>'XUL::Gui test', minwidth=>640, minheight=>480,
@@ -100,6 +100,13 @@ SKIP: {
 
                 ok 'return'    => ($ID{lbl}->value = 'update') eq 'update';
                 ok 'set value' =>  $ID{lbl}->value eq 'update';
+
+				ok 'alias value' => eval {
+					for (ID(lbl)->value) {
+						$_ .= ' alias';
+					}
+					ID(lbl)->value eq 'update alias';
+				};
 
                 $ID{btn}->click;
                 doevents;

@@ -16,7 +16,7 @@ name: XUL-Gui
 provides:
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.50
+    version: 0.51
   XUL::Gui::Manual:
     file: lib/XUL/Gui/Manual.pm
   XUL::Gui::Tutorial:
@@ -39,4 +39,4 @@ requires:
   warnings: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.50
+version: 0.51

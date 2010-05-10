@@ -6,7 +6,7 @@ package XUL::Gui;
     use List::Util   'max';
     use MIME::Base64 'encode_base64';
     use Encode       'encode';
-    our $VERSION  =  '0.50';
+    our $VERSION  =  '0.51';
     our $DEBUG    =   0;
 
     $Carp::Internal{"XUL::Gui$_"}++
@@ -33,7 +33,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.50
+version 0.51
 
 this module is under active development, interfaces may change.
 
@@ -205,7 +205,7 @@ multiple 'style' attributes are joined with ';' into a single attribute
 
     :base       %ID ID alert display quit widget
     :tools      function gui interval serve timeout toggle XUL
-    :pragma     buffered cached delay doevents noevents now
+    :pragma     buffered cached delay doevents flush noevents now
     :const      BLUR FILL FIT FLEX MIDDLE SCROLL
     :widgets    ComboBox filepicker
     :image      bitmap bitmap2src
@@ -303,7 +303,7 @@ constants:
         base     => [qw/%ID ID display quit alert widget/],
         widgets  => [qw/filepicker ComboBox/],
         tools    => [qw/gui interval timeout toggle function serve XUL/],
-        pragma   => [qw/buffered now cached noevents delay doevents/],
+        pragma   => [qw/buffered now cached noevents delay doevents flush/],
         xul      => [@Xul],
         html     => [keys %HTML],
         const    => [qw/FLEX FIT FILL SCROLL MIDDLE BLUR/],
@@ -694,7 +694,7 @@ more detail in L<XUL::Gui::Manual>
                     my ($k, $v) = ($_, $methods{$_});
                     ref $v eq 'CODE' ? ($k, $v)
                     : do {
-                        $data{$k} = dclone $v;
+                        $data{$k} = ref $v ? dclone $v : $v;
                         $k => sub :lvalue {$data{$k}};
                     }
                 } keys %methods),
@@ -950,7 +950,7 @@ executes JAVASCRIPT in the gui, returns the result
 
             unless ($now) {
                push @buffer, $msg and return if $buffered;
-               $setbuf .= $msg and return if $type eq 'SET';
+               $setbuf .= $msg and return if $type eq 'SET' and not $cached;
                return $cache{$msg} if exists $cache{$msg};
             }
 
@@ -959,11 +959,11 @@ executes JAVASCRIPT in the gui, returns the result
                 $msg = "$setbuf; $msg";
                 $setbuf = '';
             }
-            $want or $msg .= ';true';
+            $want or $msg .= ';true' unless $cached;
             $server->write('text/plain', $msg);
 
             my $res = $server->read_until('/res');
-            if ($want) {
+            if ($want or $cached) {
                 $res = $$res{CONTENT};
 
                 $res =~ /^(...) (.*)/s or croak "invalid response: $res";
@@ -973,19 +973,17 @@ executes JAVASCRIPT in the gui, returns the result
                           : $1 eq 'UND'
                                ? undef
                                : $2;
-                $cache{$msg} = $res if $cached and $type eq 'GET';
+                if ($cached) {
+                    if ($type eq 'SET') {
+                        $type =  'GET';
+                        $msg =~ s/.[^,]+(?=\).*?$)//;
+                        substr $msg, 0, 3, 'GET';
+                    }
+                    $cache{$msg} = $res if $type eq 'GET';
+                }
             }
             $res
         }
-
-        sub flush {
-            if ($setbuf) {
-                $server->write('text/plain', $setbuf);
-                $setbuf = '';
-                $server->read_until('/res');
-            }
-        }
-
 
 =head2 pragmatic blocks
 
@@ -1002,6 +1000,19 @@ event handler ends, or C<doevents> is called.  this eliminates the need for many
 common applications of the C<buffered> pragma.
 
 =over 8
+
+=item C<flush>
+
+flush the autobuffer
+
+=cut
+        sub flush {
+            if ($setbuf) {
+                $server->write('text/plain', $setbuf);
+                $setbuf = '';
+                $server->read_until('/res');
+            }
+        }
 
 =item C<buffered {CODE} LIST>
 
@@ -1028,7 +1039,7 @@ delays sending all messages to the gui. partially deprecated (see autobuffering)
 turns on caching of gets from the gui
 
 =cut
-        sub cashed (&) {
+        sub cached (&) {
             $cached++;
             my $ret = shift->();
             %cache  = () unless --$cached;
@@ -1651,7 +1662,8 @@ package
         my ($self, $client) = ($_[0], $_[0]{client});
         assert read => $client;
         my ($length, %req);
-        local ($/, $_) = "\015\012";
+        local $/ = "\015\012";
+        local *_;
 
         ($req{URL}) = <$client> =~ /^\s*\w+\s*(\S+)\s*HTTP/
             or croak 'broken message received';
@@ -1992,8 +2004,10 @@ const xul_gui = (function () {
 
     function SET (self, k, v) {
         if (typeof self.hasAttribute == 'function'
-                && self.hasAttribute(k) )
-            return self.setAttribute(k, v);
+                && self.hasAttribute(k) ) {
+             self.setAttribute(k, v);
+             return v;
+        }
 
         return self[k] = v;
     }

@@ -1,6 +1,10 @@
 Build.bat
 Build.PL
 Changes
+examples/sweeper.pl
+examples/ball_benchmark.pl
+examples/serpinski.pl
+examples/calculator.pl
 ignore.txt
 lib/XUL/Gui.pm
 lib/XUL/Gui/Manual.pm

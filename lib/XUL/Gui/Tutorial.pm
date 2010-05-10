@@ -88,6 +88,9 @@ the basic rule of thumb with methods is if you define it in perl, it will be
 called in perl, otherwise it will be passed to javascript. in other words, all
 objects on the perl side override their paired object on the javascript side.
 
+several simple example programs have been added to the 'examples' folder of this
+distribution.
+
 more in the next update...
 
 =cut
