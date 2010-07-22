@@ -27,6 +27,7 @@ my $builder = Module::Build->new(
 		'IO::Socket'   => 0,
 		'Time::HiRes'  => 0,
 		'Scalar::Util' => 0,
+		'Hash::Util'   => 0,
     },
     add_to_cleanup     => [ 'XUL-Gui-*' ],
     create_makefile_pl => 'traditional',

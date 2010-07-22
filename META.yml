@@ -14,9 +14,12 @@ meta-spec:
   version: 1.4
 name: XUL-Gui
 provides:
+  Web::Gui:
+    file: lib/Web/Gui.pm
+    version: 0.60
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.51
+    version: 0.60
   XUL::Gui::Manual:
     file: lib/XUL/Gui/Manual.pm
   XUL::Gui::Tutorial:
@@ -29,6 +32,7 @@ requires:
   File::Path: 0
   File::Spec: 0
   File::Temp: 0.19
+  Hash::Util: 0
   IO::Socket: 0
   List::Util: 0
   MIME::Base64: 0
@@ -39,4 +43,4 @@ requires:
   warnings: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.51
+version: 0.60

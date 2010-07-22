@@ -5,10 +5,12 @@ examples/sweeper.pl
 examples/ball_benchmark.pl
 examples/serpinski.pl
 examples/calculator.pl
+examples/runtime_construction.pl
 ignore.txt
 lib/XUL/Gui.pm
 lib/XUL/Gui/Manual.pm
 lib/XUL/Gui/Tutorial.pm
+lib/Web/Gui.pm
 Makefile.PL
 MANIFEST
 README

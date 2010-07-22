@@ -2,10 +2,8 @@ use strict;
 use warnings;
 use XUL::Gui 'g->';
 
-my $width = 800;
+my $width = 400;
 my $height = sqrt($width**2 - ($width/2)**2);
-
-my $frame;
 
 g->display(
 	g->box(
@@ -28,17 +26,20 @@ g->display(
 		my @points = (
 				   [$width/2, 0],
 			[0, $height], [$width, $height],
-			#[$width/2, $height/2],
+			#[$width/2, $height/2],     # other patterns
 			#[$width/4, $height/2],
 			#[$width*(3/4), $height/2],
 			#[$width/2, $height],
 		);
-		my ($x, $y, $p) = @{ $points[0] };
+		my ($x, $y) = @{ $points[0] };
+		my $num = @points;
+		my ($frame, $p);
 		while (1) {
-			$p = $points[ rand 3 ];
+			$p = $points[ rand $num ];
 			$x = ($x + $$p[0]) / 2;
 			$y = ($y + $$p[1]) / 2;
 
+			# draw the point with a little antialiasing
 			$canvas->fillRect($x + 1/4, $y + 1/4, 1/2, 1/2);
 
 			unless (++$frame % 1_000) {

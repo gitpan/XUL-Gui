@@ -6,3 +6,7 @@ Revision history for XUL-Gui
 
 0.50    many more.  major rewrite of the client server code.  assorted bug fixes
         speed improvements, trusted mode improvements.
+
+0.60	even more.  Web::Gui mode.  xulrunner support. data binding syntax.
+		speed improvements.  memory leaks plugged.  data inheritance. object
+		introspection....

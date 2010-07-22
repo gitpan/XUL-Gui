@@ -88,6 +88,67 @@ the basic rule of thumb with methods is if you define it in perl, it will be
 called in perl, otherwise it will be passed to javascript. in other words, all
 objects on the perl side override their paired object on the javascript side.
 
+=head2 a simple gui for a command line application
+
+    use XUL::Gui;
+
+    display Window
+        title     => 'Foo Processor',
+        minheight => 300,
+        Hbox( MIDDLE,
+            (map {
+                my $id = $_;
+                CheckBox
+                    id     => $id,
+                    label  => "use $id",
+                    option => sub {
+                        shift->checked eq 'true' ? " -$id" : ()
+                    }
+            } qw/foo bar baz/),
+            Label(
+                value => 'num: '
+            ),
+            TextBox(
+                id     => 'num',
+                type   => 'number',
+                option => sub {' -num ' . shift->value}
+            ),
+            Button(
+                label     => 'run',
+                oncommand => sub {
+                    my @opts = map {ID($_)->option} qw/foo bar baz num/;
+
+                    ID(txt)->value = "fooproc @opts";
+                }
+            ),
+        ),
+        TextBox( FILL SCROLL id => 'txt', multiline => 'true' );
+
+breaking that apart, we start with a window and give it a title and minimum
+height.  the window contains two elements, an hbox which holds the controls,
+and then a textbox which will hold the output of the command.  the textbox has
+its 'fill' attribute set, so it will expand to all available space in its parent
+window.
+
+our foo processor takes three switches, which are implemented here as
+check boxes.  these are followed by a numeric input box, and finally the "run"
+button to launch fooproc.
+
+to make the coding of the run button simpler, each of the elements representing
+a command line option has been given an 'option' method which returns its
+portion of the command line.  there is no special syntax needed to add this
+interface to each element.  simply declaring an attribute with a coderef value
+creates a method on that object.
+
+if the attribute's name happens to match C< /^on/ > then XUL::Gui will treat it
+as an event handler, which is just a special type of method that gets called
+from the gui when an event happens.  the button's C< oncommand > attribute is an
+example of an event handler.
+
+
+    ----
+
+
 several simple example programs have been added to the 'examples' folder of this
 distribution.
 

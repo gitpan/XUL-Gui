@@ -44,10 +44,10 @@ BEGIN {*Ball = widget {
 			-moz-border-radius: 30px;
 		};
 
-	$_{M}{update} = do {
+	$_->can('update') = do {
 		my ($left, $top) = ($size[0]/2, $size[1]);
-		my $dt = 1 + rand 0.015; # + @balls/1000;
-		my $dl = 1 - rand 0.015; # - @balls/1000;
+		my $dt = 1 + rand 0.015;
+		my $dl = 1 - rand 0.015;
 		$_ /= 0.2 for $dt, $dl;
 		sub {
 			$dl *= -1 if $left <= 0 or $left >= $size[0];

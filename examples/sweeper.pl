@@ -2,12 +2,13 @@
 use strict;
 use warnings;
 use XUL::Gui;
+#$XUL::Gui::TIED_WIDGETS++;
 
 our @size = (19, 19);
 $|++;
 
 sub start {
-	display Window id => 'window',
+	display debug=>0, Window id => 'window',
 		title => 'perl sweeper',
 		MIDDLE
 		STYLE(q{
@@ -29,7 +30,6 @@ sub start {
 				background-color: lightlightgrey;
 				margin: 1px;
 				color: dimgrey;
-
 				border: 1px solid lightgrey;
 			}
 			.bomb {
@@ -48,28 +48,52 @@ sub start {
 		Hbox( MIDDLE
 		#	Label( id => 'time', value => '00:00' ),
 			TextBox( id => 'size', value => '20x20', width=>60 ),
-			TextBox( id => 'mines', value => 50, type=>'number', width=>40 ),
+			TextBox( id => 'mines', value => 30, type=>'number', width=>40 ),
 			Button( BLUR label => 'reset', oncommand => sub {
 				ID(board)->reset
 			}),
+			#Button( label => 'mem test', oncommand => sub {
+			#	use Time::HiRes 'time';
+			#	my $time;
+			#	my $interval = 0;
+			#	while (1) {
+			#		$time = time;
+			#
+			#		ID(board)->explode(0);
+			#		doevents;
+			#		ID(board)->reset;
+			#
+			#		$interval = ($interval * 3 + (time - $time)) / 4;
+			#		print 'objects: ', scalar( keys %ID ), ", fps: ", 1/$interval, "\n";
+			#	}
+			#}),
+			#Button( label => 'find cycle', oncommand => sub {
+			#	use Devel::Cycle;
+			#	my $len = keys %ID;
+			#	for (keys %ID) {
+			#		print "\n$_ ${\($len--)}: ";
+			#		print find_cycle $ID{$_};
+			#	}
+			#}),
 		),
 		Board( id => 'board' ),
 }
 
-*Board = widget {Vbox id => 'board', $_->make_cells(50)}
+*Board = widget {Vbox id => 'board', delay {shift->reset} $_}
 	playing => 1,
 	reset => sub {
 		my $self = shift;
 		@size = map {$_ - 1} split /\D/ => $ID{size}->value;
 		$$self{playing} = 1;
 		$$self{board}->replaceChildren( $self->make_cells );
-		my $id = $$self{board}{ID};
-		gui 'window.resizeTo(', 40 + $size[1]*22, ', ', $size[0]*22 + 90, ')'
+		gui 'window.resizeTo(', 40 + $size[1]*22, ', ', $size[0]*22 + 90, ')';
+		$$self{cleared} = 0;
 	},
 	make_cells => sub {
 		my $self = shift;
-		my $mines = shift || ID(mines)->value;
+		$$self{mines} = my $mines = shift || ID(mines)->value;
 		my %mines;
+		$$self{win} = ($size[0]+1) * ($size[1]+1);
 		while (keys %mines < $mines) {
 			my ($x, $y) = map int(rand($_ + 1)) => @size;
 			redo if $mines{"$x,$y"}++;
@@ -102,7 +126,17 @@ sub start {
 			$self->explode($cell);
 		} else {
 			$self->clear($x, $y);
+			$self->win if $self->check;
 		}
+	},
+	check => sub {
+		my $self = shift;
+		$$self{cleared} + $$self{mines} == $$self{win}
+	},
+	win   => sub {
+		my $self = shift;
+		$$self{playing} = 0;
+		alert 'you win';
 	},
 	clear => sub {
 		my $self = shift;
@@ -112,6 +146,7 @@ sub start {
 			my ($cx, $cy) = @{ shift @clear };
 			next if $$self{cells}[$cx][$cy]{W}{marked};
 			unless ($$self{clear}[$cx][$cy]++) {
+				$$self{cleared}++;
 				my $near = $$self{near}[$cx][$cy];
 				$$self{cells}[$cx][$cy]{W}->clear($near);
 

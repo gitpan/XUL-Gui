@@ -37,7 +37,7 @@ hope in most cases that you won't have to)
 the primary way of assembling your gui and submitting large updates
 
     Label( value=>'Hello World' )
-    Button( label=>'Click' oncommand=>\&eventhandler )
+    Button( label=>'Click', oncommand=>\&eventhandler )
 
 the parenthesis are optional in simple contexts
 
@@ -108,8 +108,8 @@ any other keys as you want. a few useful reserved keys to know are:
     M       a hashref for user defined methods
     W       the parent widget if it exists
 
-all tags are loaded into the exported %ID hash with their specified id or an
-auto generated one. all reserved ids match C</^xul_\d+/>
+all tags are loaded into the exported C< %ID > hash with their specified id or
+an auto generated one. all reserved ids match C</^xul_\d+/>
 
 tag objects are accessed as follows:
 
@@ -170,22 +170,24 @@ C<(set|get)Attribute()> calls)
     print $ID{btn}->method_(...);   # forced method     ID.btn.method(...);
 
 
-
 the returned value of all -> calls is either a scalar, or a reference to an
 appropriate proxy object.
 
-=cut
+if javascript returns an array, access the object as a perl array reference.
 
-#if the javascript returns an array, access the
-#object as a perl \@array.
+    my $array = gui 'new Array(1, 2, 3)';
 
-=pod
+    print "@$array";  # prints 1 2 3
+
+    $array->reverse;
+
+    print "@$array";  # prints 3 2 1
 
 the bidirectional translation between perl and javascript is:
 
         JavaScript      |           Perl
     --------------------|-------------------------
-        Array           |   ARRAY ref               # not implemented yet
+        Array           |   ARRAY ref
         Object          |   Tag Object
         undefined      /|   undef
         null       <--/ |   undef

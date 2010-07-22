@@ -17,12 +17,13 @@ WriteMakefile
                    'File::Path' => 0,
                    'warnings' => 0,
                    'Time::HiRes' => 0,
+                   'Hash::Util' => 0,
                    'Exporter' => 0,
                    'Carp' => 0,
-                   'Test::More' => 0,
                    'strict' => 0,
-                   'IO::Socket' => 0,
+                   'Test::More' => 0,
                    'MIME::Base64' => 0,
+                   'IO::Socket' => 0,
                    'File::Temp' => '0.19'
                  }
 )
