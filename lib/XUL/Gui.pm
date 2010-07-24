@@ -20,7 +20,7 @@ package XUL::Gui;
             warn "XUL::Gui> Hash::Util::hv_store not found, memory usage will be higher\n"
         }
     }
-    our $VERSION = '0.61';
+    our $VERSION = '0.62';
     our $THREADS = $INC{'threads.pm'};  # disables a number of optimizations that break under threads
 
     our $DEBUG              = 0; # verbosity from 0 - 6
@@ -55,7 +55,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.61
+version 0.62
 
 this module is under active development, interfaces may change.
 
@@ -206,12 +206,14 @@ this is useful for readability when collapsing attribute lists with C< qw// >
 
 multiple 'style' attributes are joined with ';' into a single attribute
 
+
+
+=head3 xul documentation links
+
 all C< XUL > and C< HTML > objects in perl are exact mirrors of their javascript
 counterparts and can be acted on as such. for anything not written in this
 document or L<XUL::Gui::Manual>, developer.mozilla.com is the official source of
 documentation:
-
-=head3 xul documentation links
 
 =over
 
@@ -224,7 +226,6 @@ documentation:
 =item * L<https://developer.mozilla.org/En/Documentation_hot_links>
 
 =back
-
 
 =head2 event handlers
 

@@ -1,7 +1,7 @@
 package Web::Gui;
     use warnings;
     use strict;
-    our $VERSION = '0.61';
+    our $VERSION = '0.62';
     use XUL::Gui ':all';    # the greatest trick the XUL ever pulled
                             # was convincing the world it didn't exist.
     $XUL::Gui::MOZILLA = 0; # and like that, poof. its gone.
@@ -19,7 +19,7 @@ Web::Gui - render cross platform gui applications in a web browser from perl
 
 =head1 VERSION
 
-version 0.61
+version 0.62
 
 this module is under active development, interfaces may change.
 
@@ -59,7 +59,7 @@ modern browsers.
 See L<XUL::Gui> for details.
 
 Selected macros may be coming to simplify dealing with forms and tables,
-C< sub Button {INPUT type => 'button', @_} >
+C<< sub Button {INPUT type => 'button', @_} >>
 
 =head1 CAVEATS
 
