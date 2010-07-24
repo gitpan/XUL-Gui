@@ -1,7 +1,7 @@
 package Web::Gui;
     use warnings;
     use strict;
-    our $VERSION = '0.60';
+    our $VERSION = '0.61';
     use XUL::Gui ':all';    # the greatest trick the XUL ever pulled
                             # was convincing the world it didn't exist.
     $XUL::Gui::MOZILLA = 0; # and like that, poof. its gone.
@@ -19,7 +19,7 @@ Web::Gui - render cross platform gui applications in a web browser from perl
 
 =head1 VERSION
 
-version 0.60
+version 0.61
 
 this module is under active development, interfaces may change.
 
@@ -51,12 +51,12 @@ this code is currently in beta, use in production environments at your own risk
 
 =head1 DESCRIPTION
 
-this module is a thin wrapper around L< XUL::Gui > that disables the mozilla
+this module is a thin wrapper around L<XUL::Gui> that disables the mozilla
 specific portions (all of the XUL tags, the filepicker, trusted mode features),
 but in turn allows you to create gui's in HTML + CSS that should run on most
 modern browsers.
 
-See L< XUL::Gui > for details.
+See L<XUL::Gui> for details.
 
 Selected macros may be coming to simplify dealing with forms and tables,
 C< sub Button {INPUT type => 'button', @_} >

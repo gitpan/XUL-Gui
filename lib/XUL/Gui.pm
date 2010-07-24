@@ -20,7 +20,7 @@ package XUL::Gui;
             warn "XUL::Gui> Hash::Util::hv_store not found, memory usage will be higher\n"
         }
     }
-    our $VERSION = '0.60';
+    our $VERSION = '0.61';
     our $THREADS = $INC{'threads.pm'};  # disables a number of optimizations that break under threads
 
     our $DEBUG              = 0; # verbosity from 0 - 6
@@ -55,7 +55,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.60
+version 0.61
 
 this module is under active development, interfaces may change.
 
@@ -561,7 +561,7 @@ default one is added. the remaining objects are then added to the window.
 
 C< display > will not return until the the gui quits
 
-see L<XUL::Gui#SYNOPSIS>, L<XUL::Gui::Manual>, L<XUL::Gui::Tutorial>, and the
+see C< SYNOPSIS >, L<XUL::Gui::Manual>, L<XUL::Gui::Tutorial>, and the
 C< examples > folder in this distribution for more details
 
 =cut
