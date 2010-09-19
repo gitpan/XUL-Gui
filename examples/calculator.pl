@@ -2,6 +2,8 @@ use strict;
 use warnings;
 use XUL::Gui;
 
+my %btn;
+
 display
 	STYLE('
 		button {
@@ -36,7 +38,7 @@ display
 		mapn {
 			Hbox map {
 				my $op = $_;
-				Button
+                $btn{$op} = Button
 					label => $op,
 					oncommand => sub {
 						($command{$op} or $_ .= $op, next)->()
@@ -51,4 +53,13 @@ display
 			7  8  9  0  .
 			push pop clr del eval
 		}
-	};
+	},
+    $XUL::Gui::TESTING ? delay {
+        for my $btn qw(2 + 4 eval / 3 eval push * pop eval) {
+            $btn{$btn}->click;
+            doevents;
+        }
+        ID(calc)->value == 4
+            ? quit
+            : die "calc error: " . ID(calc)->value
+    } : ();

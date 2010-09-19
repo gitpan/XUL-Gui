@@ -88,7 +88,8 @@ SKIP: {
         unless defined $ENV{XUL_GUI_TEST};
 
 	my $binding = 'init';
-    display debug => 0, silent=>1, Window title=>'XUL::Gui test', minwidth=>640, minheight=>480,
+    display debug => 0, silent => 1,
+        Window title=>'XUL::Gui test', minwidth=>640, minheight=>480,
         Vbox id=>'main', FILL, align=>'center', pack=>'center',
             Label ( id=>'lbl', _value => 'label'),
 			Label ( id => 'db', value => \$binding ),

@@ -16,10 +16,10 @@ name: XUL-Gui
 provides:
   Web::Gui:
     file: lib/Web/Gui.pm
-    version: 0.62
+    version: 0.63
   XUL::Gui:
     file: lib/XUL/Gui.pm
-    version: 0.62
+    version: 0.63
   XUL::Gui::Manual:
     file: lib/XUL/Gui/Manual.pm
   XUL::Gui::Tutorial:
@@ -43,4 +43,4 @@ requires:
   warnings: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.62
+version: 0.63

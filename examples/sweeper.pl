@@ -8,6 +8,13 @@ our @size = (19, 19);
 $|++;
 
 sub start {
+    if ($XUL::Gui::TESTING) {
+        delay {
+            ID(board)->reset;
+            ID(board)->autoplay(2);
+            quit;
+        }
+    }
 	display debug=>0, Window id => 'window',
 		title => 'perl sweeper',
 		MIDDLE
@@ -52,6 +59,9 @@ sub start {
 			Button( BLUR label => 'reset', oncommand => sub {
 				ID(board)->reset
 			}),
+#            Button( BLUR label => 'autoplay', oncommand => sub {
+#				ID(board)->autoplay(10)
+#			}),
 			#Button( label => 'mem test', oncommand => sub {
 			#	use Time::HiRes 'time';
 			#	my $time;
@@ -136,7 +146,7 @@ sub start {
 	win   => sub {
 		my $self = shift;
 		$$self{playing} = 0;
-		alert 'you win';
+		alert 'you win' unless $$self{autoplay};
 	},
 	clear => sub {
 		my $self = shift;
@@ -177,7 +187,26 @@ sub start {
 				}
 			}
 		}
-	};
+	},
+    autoplay => sub {
+        use List::Util 'shuffle';
+        my ($self, $rounds) = @_;
+        local $$self{autoplay} = 1;
+        for (1 .. $rounds || 1) {
+            my @clear = shuffle grep !$$_{W}->mine,
+                                map @$_ => @{$$self{cells}};
+
+            while (my $cell = shift @clear) {
+                unless ($$cell{W}{clear}) {
+                    $self->click($cell, $$cell{W}->x, $$cell{W}->y);
+                    doevents;
+                }
+            }
+            $self->explode(0);
+            doevents;
+            $self->reset;
+        }
+    };;
 
 
 *Cell = widget {

@@ -42,7 +42,13 @@ g->display(
 			# draw the point with a little antialiasing
 			$canvas->fillRect($x + 1/4, $y + 1/4, 1/2, 1/2);
 
-			unless (++$frame % 1_000) {
+            $frame++;
+
+            if ($XUL::Gui::TESTING) {
+                if    (not $frame % 100  ) {g->flush}
+                elsif (not $frame % 1_001) {g->doevents}
+                elsif (    $frame > 5_000) {g->quit}
+            } elsif (not ++$frame % 1_000) {
 				$frame % 100_000
 					   ? g->flush
 					   : g->doevents # keeps firefox happy

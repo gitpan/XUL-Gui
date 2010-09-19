@@ -20,9 +20,9 @@ package XUL::Gui;
             warn "XUL::Gui> Hash::Util::hv_store not found, memory usage will be higher\n"
         }
     }
-    our $VERSION = '0.62';
+    our $VERSION = '0.63';
     our $THREADS = $INC{'threads.pm'};  # disables a number of optimizations that break under threads
-
+    our $TESTING;
     our $DEBUG              = 0; # verbosity from 0 - 6
     our $MOZILLA            = 1; # enables mozilla specific XUL, otherwise only HTML tags will work (Web::Gui mode)
     our $AUTOBUFFER         = 1; # enable autobuffering of SET messages
@@ -55,7 +55,7 @@ XUL::Gui - render cross platform gui applications with firefox from perl
 
 =head1 VERSION
 
-version 0.62
+version 0.63
 
 this module is under active development, interfaces may change.
 
@@ -66,7 +66,7 @@ this code is currently in beta, use in production environments at your own risk
     use XUL::Gui;
     display Label 'hello, world!';
 
-    # short enough?  s/Label/P/ for bonus points
+    # short enough?  remove "Label" for bonus points
 
     use XUL::Gui;
     display Window title => "XUL::Gui's long hello",
@@ -156,7 +156,7 @@ in the special case of a tag with one argument, which is not another tag, that
 argument is added to that tag as a text node. this is mostly useful for HTML
 tags, but works with XUL as well. once parsed, the line C< B('...') > becomes
 C<< B( TEXT => '...' ) >>. the special C< TEXT > attribute can be used directly
-if other attributes need to be set C<< FONT( color=>'blue', TEXT=>'...' ) >>.
+if other attributes need to be set: C<< FONT( color=>'blue', TEXT=>'...' ) >>.
 
 =item * multiple attributes
 
@@ -221,9 +221,9 @@ documentation:
 
 =item * L<https://developer.mozilla.org/en/XUL_Reference>
 
-=item * L<http://www.hevanet.com/acorbin/xul/top.xul> - XUL periodic table
-
 =item * L<https://developer.mozilla.org/En/Documentation_hot_links>
+
+=item * L<http://www.hevanet.com/acorbin/xul/top.xul> - XUL periodic table
 
 =back
 
@@ -265,7 +265,7 @@ later on.
     :tools      function gui interval serve timeout toggle XUL
     :pragma     buffered cached delay doevents flush noevents now
     :const      BLUR FILL FIT FLEX MIDDLE SCROLL
-    :widgets    ComboBox filepicker
+    :widgets    ComboBox filepicker prompt
     :image      bitmap bitmap2src
     :util       apply mapn trace zip
     :internal   genid object realid tag
@@ -359,7 +359,7 @@ constants:
     our %EXPORT_TAGS = (
         util     => [qw/zip mapn apply trace/],
         base     => [qw/%ID ID display quit alert widget/],
-        widgets  => [qw/filepicker ComboBox/],
+        widgets  => [qw/filepicker ComboBox prompt/],
         tools    => [qw/gui interval timeout toggle function serve XUL/],
         pragma   => [qw/buffered now cached noevents delay doevents flush/],
         xul      => [@Xul],
@@ -577,11 +577,12 @@ C< examples > folder in this distribution for more details
             @_ = PRE(shift)
         }
         my $args = { &parse };
-        $$args{A}{xml}
-            ? join "\n" =>
+        if ($$args{A}{xml}) {
+            return join "\n" =>
                 map $_->$toXML( 0, $$args{A}{xml} )
                 =>  @{$$args{C}}
-            : $server->start( $args )
+        }
+        $server->start( $args )
     }
 
 
@@ -596,7 +597,7 @@ trusted mode.
 =cut
     sub quit {
         gui('setTimeout("quit()", 5); 0');
-        $$server{run} = 0
+        $$server{run} = 0;
     }
 
 
@@ -656,8 +657,8 @@ these objects inherit from C< [object] > which provides the following methods.
             id      => sub {$_[0]{ID}},
             parent  => sub {$_[0]{P }},
             widget  => sub {$_[0]{W }},
-            proto   => sub :lvalue {$_[0]{ISA}},
             super   => sub {$_[0]{ISA}[$_[1] or 0]},
+            proto   => sub :lvalue {$_[0]{ISA}},
             extends => sub {
                 my $self   = shift;
                 my $target = (\%ID == realid) ? $self : \%ID;
@@ -981,6 +982,16 @@ open an alert message box
     }
 
 
+=item C< prompt STRING >
+
+open an prompt message box
+
+=cut
+    sub prompt {
+        gui( "prompt('".&escape."')" )
+    }
+
+
 =item C< filepicker MODE FILTER_PAIRS >
 
 opens a filepicker dialog. modes are 'open', 'dir', or 'save'. returns the path
@@ -1050,11 +1061,15 @@ carps C< LIST > with object details, and then returns C< LIST > unchanged
     }
 
     {my %cache;
+     my $last_caller;
     sub lookup {
         no strict 'refs';
         my $self  = shift;
         my $proto = $$self{WIDGET} || $$self{W}{WIDGET}
           or return $$self{ID} ||  $self;
+
+        if   (@_) {$last_caller = $_[0]}
+        else {@_ = $last_caller ||= caller}
 
         my $name = $cache{$proto};
         unless ($name) {
@@ -1115,31 +1130,36 @@ to access widget siblings by id, wrap the id with C< W{...} >
     }
 
 
-=item C< interval {CODE} TIME >
+=item C< interval {CODE} TIME LIST >
 
 perl interface to javascript's C< setInterval() >. interval returns a code ref
 which when called will cancel the interval. C< TIME > is in milliseconds.
+C< @_ > will be set to C< LIST > when the code block is executed.
 
 =cut
-    sub interval (&$) {
-        my ($code, $time) = @_;
+    sub interval (&$@) {
+        my ($code, $time) = splice @_, 0, 2;
+        my $list = \@_;
         my $id = genid;
-        realid($id) = $code;
+        realid($id)= sub {$code->(@$list)};
+                   # = sub {local *_ = $list; goto &$code};
         gui( qq{SET;ID.$id = setInterval( "pevt('XUL::Gui::realid(q|$id|)->()')", $time)} );
         sub {gui(qq{SET;clearInterval(ID.$id)})}
     }
 
 
-=item C< timeout {CODE} TIME >
+=item C< timeout {CODE} TIME LIST >
 
 perl interface to javascript's C< setTimeout() >. timeout returns a code ref
-which when called will cancel the timeout. C< TIME > is in milliseconds.
+which when called will cancel the timeout. C< TIME > is in milliseconds. C< @_ >
+will be set to C< LIST > when the code block is executed.
 
 =cut
-    sub timeout (&$) {
-        my ($code, $time) = @_;
+    sub timeout (&$@) {
+        my ($code, $time) = splice @_, 0, 2;
+        my $list = \@_;
         my $id = genid;
-        realid($id) = $code;
+        realid($id) = sub {$code->(@$list)};
         gui( qq{SET;ID.$id = setTimeout( "pevt('XUL::Gui::realid(q|$id|)->()')", $time)} );
         sub {gui(qq{SET;cancelTimeout(ID.$id)})}
     }
@@ -1846,12 +1866,8 @@ removes the children in C< LIST >, or all children if none are given
     my $remove_children = sub {
         my $self = shift;
         if (@_) {
-            my %child = map {$$self{C}[$_] => $_} 0 .. $#{ $$self{C} };
-            for (@_) {
-                if (exists $child{$_}) {
-                    splice @{$$self{C}}, $child{$_}, 1;
-                }
-            }
+            my %remove = map {$_ => 1} @_;
+            @{$$self{C}} = grep {not $remove{$_}} @{$$self{C}};
         } else {
             @{$$self{C}} = ()
         }
@@ -2060,7 +2076,7 @@ package
         $$self{caller}  = caller 1;
         $active         = $self;
         $$self{$_}      = $$self{args}{A}{$_}
-            for qw(debug silent trusted launch skin chrome port delay mozilla default_browser);
+            for qw(debug silent trusted launch skin chrome port delay mozilla default_browser serve_files);
 
         defined $$self{$_} or $$self{$_} = 1
             for qw(launch chrome skin);
@@ -2072,6 +2088,8 @@ package
 
         local $MOZILLA = defined $$self{mozilla} ? $$self{mozilla} : $MOZILLA
             or $DEBUG && $self->status('XUL enhancements disabled. using HTML only mode');
+
+        $$self{silent}++ if $TESTING;
 
         local $| = 1 if $DEBUG;
 
@@ -2101,13 +2119,15 @@ package
                   ? 0 : $@ || 'something bad happened'; #?
 
         if ($$self{firefox}) {
-            close $$self{firefox};
             kill HUP => -$$self{ffpid};
+            kill HUP =>  $$self{ffpid};
+            close $$self{firefox};
         }
 
         {($$self{dir} or last)->unlink_on_destroy(1)}
 
-        die $error if $error and ref $error ne 'XUL::Gui server stopped';
+        die $error if $error
+              and ref $error ne 'XUL::Gui server stopped';
 
         $self->stop('display stopped');
         $self->cleanup;
@@ -2130,11 +2150,15 @@ package
 
             if (my $handler = $$dispatch{$url}) {
                 $handler->();
-            } elsif (open my $file, '<', ".$url") {
-                $self->write('text/plain', do{local $/; <$file>})
-            } else {
-                $self->status("file: $url not found");
-                $self->write('text/plain', '')
+            } elsif (my $prefix = $$self{serve_files}) {
+                $url = ($prefix =~ m{ [\\\/] $ }x ? $prefix : '.') . $url;
+
+                if (open my $file, '<', $url) {
+                    $self->write('text/plain', do {local $/; <$file>})
+                } else {
+                    $self->status("file: $url not found");
+                    $self->write('text/plain', '')
+                }
             }
             $$run or abort;
         }
@@ -2321,9 +2345,9 @@ package
         }
     }
 
+    {my @firefox;
     sub launch {
         my $self = shift;
-        my @firefox;
 
         if ($$self{default_browser} or not $MOZILLA) {
             my $cmd = ($^O =~ /MSWin/  ? 'start' :
@@ -2334,24 +2358,27 @@ package
             system $cmd and die $!;
             return
         }
-
-        find sub {push @firefox, [length, $File::Find::name]
-                   if /^(:?firefox|iceweasel|xulrunner.*)(?:-bin|\.exe)?$/ and -f} => $_
-        for grep {/mozilla|firefox|iceweasel|xulrunner/i }
-            map {
-                if (opendir my $dir => my $path = $_)
-                   {map "$path/$_"  => readdir $dir} else {}
-            }
-                $^O =~ /MSWin/  ? @ENV{qw/ProgramFiles ProgramFiles(x86)/} :
-                $^O =~ /darwin/ ? '/Applications' :
-                split  /[:;]/  => $ENV{PATH};
-
-        if (@firefox = sort {$$a[0] < $$b[0]} @firefox) {
+        unless (@firefox) {
+            find sub {push @firefox, [length, $File::Find::name]
+                       if /^(:?firefox|iceweasel|xulrunner.*)(?:-bin|\.exe)?$/i and -f} => $_
+            for grep {/mozilla|firefox|iceweasel|xulrunner/i }
+                map {
+                    if (opendir my $dir => my $path = $_)
+                       {map "$path/$_"  => readdir $dir} else {}
+                }
+                    $^O =~ /MSWin/  ? @ENV{qw/ProgramFiles ProgramFiles(x86)/} :
+                    $^O =~ /darwin/ ? '/Applications' :
+                    split  /[:;]/  => $ENV{PATH};
+            @firefox = sort {$$a[0] < $$b[0]} @firefox
+        }
+        if (@firefox) {
             my $app;
             for ($$self{trusted}) {
                 defined and !$_ or $_ =
-                    `"$firefox[0][1]" -v 2>&1`
-                        =~ /(?:firefox|iceweasel)\s+3|xulrunner\s+1\.[789]/i
+                    `"$firefox[0][1]" -v 2>&1` =~
+                        / (?: firefox | iceweasel ) \s+ [34]
+                            | xulrunner             \s+ (?: 1\.[5-9] | 2\.[0-3] )
+                        /ix
             }
             if ($$self{trusted}) {
                 local $@;
@@ -2416,8 +2443,10 @@ package
                     }
                 }
             }
-            $firefox[0][1] =~ tr./.\\. if $^O =~ /MSWin/;
-            my $cmd = qq{"$firefox[0][1]" }
+
+            my $firefox = $firefox[0][1];
+            $firefox =~ tr./.\\. if $^O =~ /MSWin/;
+            my $cmd = qq{"$firefox" }
                     . ($app
                         ? "-app $app"
                         : ($$self{chrome} ? '-chrome ' : '')
@@ -2436,7 +2465,7 @@ package
             }
         }
         else {status {}, 'firefox not found: start manually'}
-    }
+    }}
 
     sub CLONE {
         local $@;

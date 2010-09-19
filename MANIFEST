@@ -17,5 +17,6 @@ README
 t/00-load.t
 t/boilerplate.t
 t/pod.t
-t/xulgui.t
+t/xulgui-01-main.t
+t/xulgui-02-examples.t
 META.yml

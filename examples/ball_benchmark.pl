@@ -21,6 +21,9 @@ display debug => 0, Window
 					unless @balls > 100 or $frame % 10;
 				$_->update for @balls;
 				if (++$frame % 100 == 0) {
+                    if ($XUL::Gui::TESTING and @balls >= 25) {
+                        quit
+                    }
 					eval {
 						ID(fps)->value = int(100 / ($_ - $time)) . ' fps';
 						$time = $_;

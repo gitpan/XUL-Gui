@@ -29,11 +29,15 @@ display sub {
 	$self->appendChildren(
 		Label('hello, world!'),
 		Button(
+            id        => 'quit',
 			label     => 'quit',
 			oncommand => sub {
-				print "goodbye, world\n";
+				print "goodbye, world\n" unless $XUL::Gui::TESTING;
 				quit;
-			}
+			},
+            delay {
+                ID(quit)->click if $XUL::Gui::TESTING;
+            }
 		)
 	);
 };
